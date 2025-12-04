@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Modificación de Cliente</title>
+    <link rel="icon" type="image/png" href="images/favicon.png" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      body {
+        font-family: Arial, system-ui;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      main {
+        flex: 1;
+        padding: 24px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .panel {
+        background: #fff;
+        border-radius: 12px;
+        padding: 40px; /* Reducido el padding para el panel principal */
+        max-width: 900px;
+        width: 100%;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+      h1,
+      h2 {
+        text-align: center;
+        margin: 8px 0;
+      }
+      form#form-modifica-cliente {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+        position: relative;
+      }
+      .input-container {
+        width: 100%;
+        min-width: 320px;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        box-sizing: border-box;
+      }
+      /* Estilos específicos para la búsqueda */
+      .input-group {
+        width: 100%;
+        position: relative;
+        margin-bottom: 20px;
+      }
+
+      /* Estilos para el autocompletado */
+      #sugerencias-lista-modifica {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        max-height: 160px;
+        overflow: auto;
+        background: #fff;
+        border: 1px solid #ccc;
+        z-index: 2000;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        border-radius: 6px;
+      }
+      #sugerencias-lista-modifica li {
+        padding: 8px 10px;
+        cursor: pointer;
+      }
+      #sugerencias-lista-modifica li:hover {
+        background: #f2f2f2;
+      }
+
+      nav.footer-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #fff;
+        border-top: 1px solid #ddd;
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        padding: 8px 0;
+      }
+      nav.footer-nav a {
+        background: #c50014;
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 6px;
+        text-decoration: none;
+      }
+      label {
+        width: 100%;
+        display: block;
+        margin-bottom: 6px;
+        text-align: left;
+        font-weight: bold; /* Hacer etiquetas más visibles */
+      }
+      /* Ocultar el formulario de modificación hasta que se carguen los datos */
+      #form-modifica-cliente {
+        display: none;
+      }
+      .btn-rojo {
+        background-color: #c50014;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      .btn-verde {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      /* Nuevo estilo para el botón Volver */
+      .btn-volver {
+        background-color: #6c757d; /* Gris para acción de retorno */
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        text-decoration: none; /* Para el enlace */
+        text-align: center;
+        display: flex; /* Para centrar el texto si es un <a> */
+        justify-content: center;
+        align-items: center;
+      }
+      /* Estilos para el contenedor de botones de búsqueda */
+      #form-buscar-cliente .button-group {
+        display: flex;
+        gap: 10px;
+        width: 100%;
+        justify-content: center;
+        margin-top: 10px;
+      }
+      #form-buscar-cliente .button-group button,
+      #form-buscar-cliente .button-group a {
+        flex: 1; /* Para que los botones ocupen el mismo ancho */
+        max-width: 50%;
+      }
+    </style>
+
+    <script type="module" src="firebase.js"></script>
+  </head>
+  <body>
+    <header class="header">
+      <div class="menu">
+        <h1 style="text-align: center; color: rgb(0, 0, 0)">
+          Modificación de Clientes
+        </h1>
+      </div>
+    </header>
+
+    <main>
+      <div class="container">
+        <div class="panel">
+          <h2>Buscar Cliente para Modificar</h2>
+          <form id="form-buscar-cliente">
+            <div class="input-container">
+              <label for="nombre-cliente-buscar"
+                >Nombre del Cliente a Modificar</label
+              >
+              <input
+                type="text"
+                id="nombre-cliente-buscar"
+                placeholder="Ejemplo: Juan Perez"
+                required
+              />
+            </div>
+
+            <div class="button-group">
+              <button type="submit" class="btn-rojo" id="btn-buscar">
+                Cargar Datos del Cliente
+              </button>
+            </div>
+            <div class="mensaje" id="mensaje-busqueda"></div>
+          </form>
+        </div>
+
+        <div
+          class="panel"
+          id="panel-modificacion"
+          style="padding-top: 10px; margin-top: 20px"
+        >
+          <h2>Datos de Cliente</h2>
+
+          <form id="form-modifica-cliente">
+            <label for="nombre">Nombre del cliente (Clave)</label>
+            <input
+              type="text"
+              id="nombre"
+              readonly
+              style="background-color: #eee; cursor: not-allowed"
+            />
+
+            <label for="direccion">Dirección</label>
+            <input
+              type="text"
+              id="direccion"
+              placeholder="Ejemplo: Calle Falsa 123"
+              required
+            />
+
+            <label for="cuit">CUIT</label>
+            <input
+              type="text"
+              id="cuit"
+              placeholder="00-00000000-0"
+              maxlength="13"
+              required
+            />
+
+            <label for="local">Local</label>
+            <input
+              type="text"
+              id="local"
+              placeholder="Ejemplo: Local 1"
+              required
+            />
+
+            <label for="localidad">Localidad</label>
+            <input
+              type="text"
+              id="localidad"
+              placeholder="Ejemplo: Córdoba"
+              required
+            />
+
+            <label for="telefono">Teléfono</label>
+            <input
+              type="text"
+              id="telefono"
+              placeholder="Ejemplo: 3515551234"
+              required
+            />
+
+            <button type="submit" class="btn-verde" id="btn-guardar-cambios">
+              Guardar Cambios
+            </button>
+
+            <div class="mensaje" id="mensaje-modificacion"></div>
+          </form>
+          
+              <a href="nuevoCliente.html" class="btn-volver"> Volver </a>
+        </div>
+      </div>
+    </main>
+
+    <nav class="footer-nav">
+      <a href="index.html">Inicio</a>
+      <a href="pedidos.html">Pedidos</a>
+      <a href="stock.html">Stock</a>
+    </nav>
+
+    <script type="module" src="modificaCliente.js"></script>
+  </body>
+</html>

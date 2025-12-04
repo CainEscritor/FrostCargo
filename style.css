@@ -1,0 +1,393 @@
+:root {
+    font-family: system-ui, Arial, Helvetica, sans-serif;
+}
+
+.spacer {
+  height: 20000px; /* ajustá la altura que quieras */
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(90deg, #ffffff, #63d3ff);
+    font-family: system-ui, Arial, Helvetica, sans-serif;
+    color: #000000;
+}
+
+.menu {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+}
+
+.container {
+    max-width: 1024px;
+    margin: 0 auto;
+    padding: 0 16px;
+}
+
+.panel {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    padding: 16px;
+}
+
+h2 {
+    margin: 16px 0;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+}
+
+.pill {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    background: #f4f4f5;
+}
+
+.ok {
+    background: #e6f9ed;
+}
+
+.warn {
+    background: #fff7e6;
+}
+
+.err {
+    background: #ffebea;
+}
+
+.muted {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+button {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: none;
+    background: #007bff;
+    cursor: pointer;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.header {
+    width: 100%;
+}
+
+.header .menu {
+    max-width: 1024px;
+    margin: 0 auto;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.logo {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: block;
+}
+
+.logo img {
+    height: 150px;
+    width: auto;
+}
+
+.menu-buttons {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 80px;
+    flex-wrap: wrap;
+    padding: 120px 250px 0px 250px;
+}
+
+.menu-buttons a {
+    width: 280px;
+    height: 280px;
+    background: #0887b9;
+    text-decoration: none;
+    border-radius: 16px;
+    font-weight: bold;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 16px;
+    transition: ease-in-out;
+    font-size: 1.9rem;
+    text-align: center;
+}
+
+.menu-buttons a:hover {
+    transform: scale(1.15);
+}
+
+.menu-buttons a img {
+    width: 230px;
+    height: 230px;
+    margin-bottom: 10px;
+}
+
+main {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: calc(100vh - 80px);
+    text-align: center;
+    flex-direction: column;
+    padding: 20px;
+}
+
+main h1 {
+    font-size: 2.5rem;
+    margin-bottom: 24px;
+}
+
+.botones-abajo {
+    display: flex;
+    justify-content: center;
+    /* centra los botones horizontalmente */
+    gap: 60px;
+    /* espacio entre botones */
+    margin-top: 24px;
+    /* separación del panel */
+}
+
+.botones-abajo .btn-rojo {
+    flex: 1;
+    /* todos ocupan el mismo ancho */
+    max-width: 200px;
+    /* opcional, para que no sean demasiado grandes */
+    display: flex;
+    /* usar flex para centrar contenido */
+    justify-content: center;
+    /* centra horizontalmente */
+    align-items: center;
+    /* centra verticalmente */
+    text-align: center;
+    /* centra el texto como fallback */
+    padding: 10px 0;
+    background: #c50014;
+    color: #fff;
+    border-radius: 6px;
+    font-weight: bold;
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+    width: 200px;
+}
+
+.botones-abajo .btn-rojo:hover {
+    opacity: 0.9;
+}
+
+.menu-buttons a,
+.menu-buttons a:link,
+.menu-buttons a:visited,
+.menu-buttons a:hover,
+.menu-buttons a:active {
+    color: #000000;
+    text-decoration: none;
+}
+
+.pedido {
+    width: 500px;
+    margin: 50px auto;
+    /* centrado horizontal */
+    border: 2px solid #ccc;
+    border-radius: 20px;
+    padding: 10px;
+    background: #f8f8f8;
+}
+
+.pedido h3 {
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.pedido p {
+    margin: 5px 0;
+    padding-left: 10px;
+}
+
+.lista-docs {
+    width: 500px;
+    margin: 20px auto;
+    text-align: center;
+}
+
+.lista-docs button {
+    display: block;
+    width: 100%;
+    margin: 8px 0;
+    padding: 10px;
+    background: #dfdfdf;
+    color: rgb(0, 0, 0);
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.lista-docs button:hover {
+    background: #afb1b4;
+}
+
+.btn-volver {
+    display: block;
+    margin: 20px auto;
+    padding: 10px 20px;
+    background: #cc0000;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    text-align: center;
+}
+
+.btn-volver:hover {
+    background: #800000;
+}
+
+.panel {
+    width: 160%;
+    margin: 20px auto;
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.lista-docs button {
+    display: block;
+    width: 100%;
+    margin: 8px 0;
+    padding: 10px;
+    border: none;
+    background: #c7c7c7;
+    color: rgb(0, 0, 0);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.lista-docs button:hover {
+    background: #838383;
+}
+
+.pedido h3 {
+    text-align: center;
+}
+
+.fila {
+    display: flex;
+    align-items: center;
+    margin: 8px 0;
+}
+
+.celda {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fafafa;
+}
+
+.celda.oscuro {
+    background: #666;
+    color: white;
+}
+
+.check-btn {
+    margin-left: 10px;
+    padding: 6px 12px;
+    background: #d6d6d6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    /* transición suave */
+}
+
+.check-btn:hover {
+    background: #1c7c31;
+}
+
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    justify-content: center;
+    align-items: center;
+}
+
+/* Caja del cartel */
+.modal {
+    background: #fff;
+    padding: 20px 30px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 18px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    max-width: 300px;
+}
+
+.footer-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(90deg, #ffffff, #63d3ff); /* igual al fondo */
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 12px 0;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.2); /* sombra opcional */
+  z-index: 1000;
+}
+
+.footer-nav a {
+  flex: 1;
+  max-width: 200px;
+  text-align: center;
+  margin: 0 10px;
+  padding: 10px 0;
+  background: #c50014;
+  color: #fff;
+  border-radius: 6px;
+  font-weight: bold;
+  text-decoration: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.footer-nav a:hover {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+

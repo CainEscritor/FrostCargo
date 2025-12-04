@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Modificar Pedido</title>
+    <link rel="icon" type="image/png" href="images/favicon.png" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      /* Estilos CSS (se mantienen igual que tu original) */
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 50px 0;
+      }
+
+      .panel {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        max-width: 1200px;
+        width: 95%;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      h1,
+      h2 {
+        margin-bottom: 15px;
+        text-align: center;
+      }
+
+      form#pedido-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+      }
+
+      form#pedido-form input[type="text"],
+      form#pedido-form select {
+        width: 50%;
+        min-width: 250px;
+        padding: 8px 10px;
+        font-size: 16px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        box-sizing: border-box;
+      }
+
+      /* Contenedor principal de colecciones (AJUSTE CLAVE AQUÍ) */
+      #contenedor-colecciones {
+        display: flex;
+        flex-direction: column; /* Esto apila los elementos verticalmente */
+        gap: 20px;
+        align-items: center; /* Centra los paneles apilados */
+        padding: 20px 0;
+        width: 100%; /* Aseguramos que ocupe todo el ancho */
+      }
+
+      /* Panel individual de colección */
+      .coleccion-panel {
+        background: #f9f9f9;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 10px;
+        /* Hacemos que ocupe el 90% del ancho del contenedor */
+        width: 90%; 
+        max-width: 600px; /* Limitamos el ancho para que no sea demasiado largo */
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+      }
+      
+      .coleccion-panel h3 {
+        background-color: #3d3d3d;
+        color: white;
+        padding: 8px;
+        margin: -10px -10px 10px -10px;
+        border-radius: 8px 8px 0 0;
+        text-align: center;
+      }
+
+      .btn-guardar {
+        margin-top: 20px;
+        width: 50%;
+        padding: 10px 20px;
+        background: orange;
+        border: none;
+        color: white;
+        font-size: 16px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      .btn-guardar:hover {
+        background: darkorange;
+      }
+
+      .fila {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .celda {
+        flex: 1;
+        text-align: left;
+        font-size: 15px;
+      }
+
+      .cantidad-input {
+        width: 80px;
+        padding: 4px 6px;
+        font-size: 15px;
+        text-align: center;
+      }
+
+      .fila.activo {
+        background-color: #eeeeee;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div class="menu">
+        <a href="index.html" class="logo">
+          <img src="images/Grido_logo.png" alt="Logo Heladería" />
+        </a>
+        <h1>Modificar Pedido</h1>
+      </div>
+    </header>
+
+    <main>
+      <div class="panel">
+        <h2 id="pedido-id-display">Cargando pedido...</h2>
+        <form id="pedido-form">
+          <label>Día</label>
+          <select id="dia" disabled></select> 
+          <label>Número de día</label>
+          <select id="numeroDia" disabled></select> 
+          <label>Categoría</label>
+          <select id="categoria"></select>
+
+          <label>Recorrido</label>
+          <select id="recorrido"></select>
+
+          <div id="contenedor-colecciones">
+            <p style="text-align: center; width: 100%;">Cargando productos de stock...</p>
+          </div>
+          <button type="submit" class="btn-guardar">Actualizar Pedido</button>
+        </form>
+      </div>
+    </main>
+
+    <script type="module" src="firebase.js"></script>
+    <script type="module" src="modificacion.js"></script>
+    <nav class="footer-nav">
+      <a href="index.html">Inicio</a>
+      <a href="pedidos.html">Pedidos</a>
+      <a href="stock.html">Stock</a>
+    </nav>
+  </body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ingresar Pedido</title>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      /* Estilos generales y layout */
+      body {
+        font-family: Arial, system-ui;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      main {
+        flex: 1;
+        padding: 24px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .panel {
+        background: #fff;
+        border-radius: 12px;
+        padding: 100px;
+        max-width: 900px;
+        width: 100%;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1,
+      h2 {
+        text-align: center;
+        margin: 8px 0;
+      }
+      form#pedido-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+        position: relative;
+      }
+      /* Contenedor para manejar el autocompletado */
+      .input-container {
+        width: 60%;
+        min-width: 320px;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      input[type="text"],
+      input[type="date"],
+      select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        box-sizing: border-box;
+      }
+      .btn-guardar {
+        margin-top: 10px;
+        width: 50%;
+        padding: 10px 16px;
+        background: #2196f3;
+        border: none;
+        color: #fff;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      /* Estilos de las colecciones de productos */
+      .grupos-panels {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .coleccion-panel {
+        padding: 12px;
+        border-radius: 10px;
+        background: #fafafa;
+      }
+      .fila {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 4px;
+        border-bottom: 1px solid #eee;
+        gap: 8px;
+      }
+      .celda {
+        flex: 1;
+        text-align: left;
+      }
+      .cantidad-input {
+        width: 90px;
+        padding: 6px;
+        text-align: center;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+      }
+      .activo {
+        background: #0051a8;
+      }
+      /* Estilos para la lista de sugerencias del cliente */
+      #sugerencias-lista {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        max-height: 160px;
+        overflow: auto;
+        background: #fff;
+        border: 1px solid #ccc;
+        z-index: 2000;
+        list-style: none;
+        padding: 0;
+        margin: 6px 0 0 0;
+        border-radius: 6px;
+      }
+      #sugerencias-lista li {
+        padding: 8px 10px;
+        cursor: pointer;
+      }
+      #sugerencias-lista li:hover {
+        background: #f2f2f2;
+      }
+      /* Estilos de modales */
+      .modal-overlay-custom {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        justify-content: center;
+        align-items: center;
+        z-index: 3000;
+      }
+      .modal-content-custom {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 520px;
+        text-align: left;
+      }
+      .modal-buttons-custom {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .modal-buttons-custom button,
+      .modal-buttons-custom a {
+        padding: 10px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        text-decoration: none;
+        text-align: center;
+      }
+      .btn-accept {
+        background: #4caf50;
+        color: #fff;
+      }
+      .btn-cancel {
+        background: #f44336;
+        color: #fff;
+      }
+      
+      label {
+        width: 100%;
+        display: block;
+        margin-bottom: 6px;
+        text-align: left;
+      }
+      
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div style="display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px;">
+        <a href="index.html" class="logo"><img src="images/Grido_logo.png" alt="Logo Heladería" /></a>
+        <h1>Ingresar Pedido</h1>
+      </div>
+    </header>
+    <main>
+      <div class="panel">
+        <form id="pedido-form">
+          <div class="input-container">
+            <label for="nombre">Nombre del cliente</label>
+            <input type="text" id="nombre" required autocomplete="off" />
+            </div>
+
+          <div class="input-container">
+            <label for="fechaNumerica">Fecha (dd/mm/aaaa)</label>
+            <input type="date" id="fechaNumerica" required />
+          </div>
+
+          <div class="input-container">
+            <label for="categoria">Categoría</label>
+            <select id="categoria"></select>
+          </div>
+
+          <div class="input-container">
+            <label for="localidad">Localidad</label>
+            <input type="text" id="localidad" required autocomplete="off" />
+          </div>
+
+          <h2>Productos (por colección)</h2>
+          <div id="contenedor-colecciones" class="grupos-panels"></div>
+          <button type="submit" class="btn-guardar">Guardar Pedido</button>
+        </form>
+      </div>
+    </main>
+    
+    <div id="cliente-advertencia-modal" class="modal-overlay-custom">
+      <div class="modal-content-custom">
+        <h3>⚠️ Cliente No Registrado</h3>
+        <p>El nombre <strong id="nombre-cliente-advertencia"></strong> no está registrado. ¿Desea guardar de todos modos?</p>
+        <div class="modal-buttons-custom">
+          <button id="btn-guardar-forzado" class="btn-accept">Guardar de todos modos</button>
+          <button id="btn-cancelar-modal" class="btn-cancel">Cancelar</button>
+          <a id="btn-abrir-nuevo-cliente" href="nuevoCliente.html" target="_blank" class="btn-accept" style="text-decoration: none; display: block; text-align: center">Abrir registro de cliente</a>
+        </div>
+      </div>
+    </div>
+    <div id="stock-advertencia-modal" class="modal-overlay-custom">
+      <div class="modal-content-custom">
+        <h3 id="stock-advertencia-titulo"></h3>
+        <p id="stock-advertencia-mensaje"></p>
+        <div id="stock-detalle" style="max-height: 200px; overflow: auto; margin-top: 8px; border: 1px solid #eee; padding: 8px; border-radius: 6px;"></div>
+        <div class="modal-buttons-custom" style="margin-top: 12px">
+          <button id="btn-forzar-stock" class="btn-accept" style="display: none">Forzar guardado</button>
+          <button id="btn-cancelar-stock" class="btn-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+    
+    <script type="module" src="firebase.js"></script>
+    <script type="module" src="ingreso.js"></script>
+    <nav class="footer-nav">
+      <a href="index.html">Inicio</a>
+      <a href="pedidos.html">Pedidos</a>
+      <a href="stock.html">Stock</a>
+    </nav>
+  </body>
+</html>

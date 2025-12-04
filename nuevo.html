@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-####" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nuevo Producto</title>
+    <link rel="icon" type="image/png" href="images/favicon.png" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      body {
+        font-family: Arial, system-ui;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      main {
+        flex: 1;
+        padding: 24px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .panel {
+        background: #fff;
+        border-radius: 12px;
+        padding: 100px;
+        max-width: 900px;
+        width: 100%;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1,
+      h2 {
+        text-align: center;
+        margin: 8px 0;
+      }
+      form#pedido-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+        position: relative;
+      }
+      .input-container {
+        width: 60%;
+        min-width: 320px;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        box-sizing: border-box;
+      }
+      .btn-guardar {
+        margin-top: 10px;
+        width: 50%;
+        padding: 10px 16px;
+        background: #2196f3;
+        border: none;
+        color: #fff;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .grupos-panels {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .coleccion-panel {
+        padding: 12px;
+        border-radius: 10px;
+        background: #fafafa;
+      }
+      .fila {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: px 4px;
+        border-bottom: 1px solid #eee;
+        gap: 8px;
+      }
+      .celda {
+        flex: 1;
+        text-align: left;
+      }
+      .cantidad-input {
+        width: 90px;
+        padding: 6px;
+        text-align: center;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+      }
+      .activo {
+        background: #e8f3ff;
+      }
+      #sugerencias-lista {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        max-height: 160px;
+        overflow: auto;
+        background: #fff;
+        border: 1px solid #ccc;
+        z-index: 2000;
+        list-style: none;
+        padding: 0;
+        margin: 6px 0 0 0;
+        border-radius: 6px;
+      }
+      #sugerencias-lista li {
+        padding: 8px 10px;
+        cursor: pointer;
+      }
+      #sugerencias-lista li:hover {
+        background: #f2f2f2;
+      }
+      .modal-overlay-custom {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        justify-content: center;
+        align-items: center;
+        z-index: 3000;
+      }
+      .modal-content-custom {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 520px;
+        text-align: left;
+      }
+      .modal-buttons-custom {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .modal-buttons-custom button,
+      .modal-buttons-custom a {
+        padding: 10px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        text-decoration: none;
+        text-align: center;
+      }
+      .btn-accept {
+        background: #4caf50;
+        color: #fff;
+      }
+      .btn-cancel {
+        background: #f44336;
+        color: #fff;
+      }
+      nav.footer-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #fff;
+        border-top: 1px solid #ddd;
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        padding: 8px 0;
+      }
+      nav.footer-nav a {
+        background: #c50014;
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 6px;
+        text-decoration: none;
+      }
+      label {
+        width: 100%;
+        display: block;
+        margin-bottom: 6px;
+        text-align: left;
+      }
+    </style>
+    <script type="module">
+      // Mantenemos la configuración de Firebase
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+      import { getFirestore } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "TU_API_KEY",
+        authDomain: "TU_AUTH_DOMAIN",
+        projectId: "TU_PROJECT_ID",
+        storageBucket: "TU_STORAGE_BUCKET",
+        messagingSenderId: "TU_SENDER_ID",
+        appId: "TU_APP_ID",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      window.db = getFirestore(app);
+    </script>
+  </head>
+  <body>
+    <header class="header">
+      <div class="menu">
+        <h1 style="text-align: center; color: rgb(0, 0, 0)">Gestión de Productos y Stock</h1>
+      </div>
+    </header>
+
+    <main class="container">
+        <div id="stock-panels-container">
+             <p style="text-align: center; width: 100%;">Cargando paneles de stock...</p>
+        </div>
+
+        <div class="footer-nav">
+          <a href="index.html">Volver al menú principal</a>
+          <a href="stock.html">Stock</a>
+          <a href="pedidos.html">Pedidos</a>
+        </div>
+    </main>
+
+    <script type="module" src="nuevo.js"></script>
+  </body>
+</html>

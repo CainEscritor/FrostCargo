@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grido | Precios Mayoristas</title>
+    <link rel="icon" type="image/png" href="images/favicon.png" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 50px 0;
+        padding-bottom: 120px;
+      }
+
+      .panel {
+        background: white;
+        border-radius: 12px;
+        padding: 40px;
+        width: 100%;
+        max-width: 800px; /* Aumentado el ancho para tres columnas */
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        margin: 10px;
+      }
+
+      h1,
+      h2 {
+        margin-bottom: 15px;
+        text-align: center;
+      }
+
+      /* Estilos para Tablas */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10px;
+      }
+
+      table th,
+      table td {
+        padding: 8px 0;
+        border-bottom: 1px solid #eee;
+      }
+
+      /* Alineación y Ancho de Producto/Insumo (Columna 1) */
+      table th:nth-child(1),
+      table td:nth-child(1) {
+        text-align: left;
+        width: 60%;
+        padding-left: 10px;
+      }
+
+      /* Columna Precio Actual (Columna 2) */
+      table th:nth-child(2),
+      table td:nth-child(2) {
+        text-align: right;
+        width: 20%;
+        padding-right: 10px;
+        font-weight: bold;
+      }
+      
+      /* Columna Nuevo Precio (Columna 3) */
+      table th:nth-child(3),
+      table td:nth-child(3) {
+        text-align: right;
+        width: 20%;
+        padding-right: 10px;
+      }
+
+      /* Estilo específico para los inputs dentro de la tabla */
+      table input[type="number"] {
+        width: 80px;
+        padding: 4px 6px;
+        font-size: 15px;
+        text-align: right;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      
+      /* Estilo para el precio actual (no editable) */
+      .precio-actual {
+          color: #333;
+          font-weight: normal;
+          padding-right: 10px;
+      }
+
+      /* Espacio inferior para el footer fijo */
+      .botones-abajo {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        width: 100%;
+        padding-top: 20px;
+        margin-bottom: 80px; 
+      }
+
+      .footer-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background-color: #f8f8f8;
+        border-top: 1px solid #ddd;
+        padding: 10px 0;
+        box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+      }
+      
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="menu">
+      <h1>Modificar Precios Mayoristas 🏷️</h1>
+    </div>
+  </header>
+
+  <main class="container">
+    
+    <div class="panel">
+      <h2>Listado de Precios</h2>
+      <table id="tabla-precios">
+        <thead>
+          <tr>
+            <th>Producto/Insumo</th>
+            <th>Precio Actual ($)</th>
+            <th>Nuevo Precio ($)</th>
+          </tr>
+        </thead>
+        <tbody id="precios-lista">
+          </tbody>
+      </table>
+    </div>
+
+    <div class="botones-abajo">
+      <button id="guardar-precios" class="btn-rojo">Guardar Cambios de Precios</button>
+    </div>
+
+    <footer class="footer-nav">
+        <a href="index.html" class="btn-rojo">Volver al Menú Principal</a> 
+      </footer>
+  </main>
+
+  <script type="module" src="precios.js"></script>
+</body>
+</html>

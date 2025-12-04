@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Modificar Stock</title>
+    <link rel="icon" type="image/png" href="images/favicon.png" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      /* estilos básicos (puedes mantener los tuyos) */
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      main {
+        flex: 1;
+        padding: 50px 16px 140px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .panel {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        max-width: 900px;
+        width: 100%;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 25px;
+      }
+      h1,
+      h2 {
+        text-align: center;
+        margin: 12px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #eee;
+      }
+      table input[type="number"] {
+        width: 100px;
+        padding: 6px;
+        text-align: right;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+      }
+      .botones-abajo {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 20px;
+      }
+      .btn-rojo {
+        background: #c50014;
+        color: #fff;
+        padding: 10px 16px;
+        border-radius: 8px;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+      }
+      #refrescar-btn {
+        margin-left: 10px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: none;
+        background: #2196f3;
+        color: white;
+        cursor: pointer;
+      }
+      .footer-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #f8f8f8;
+        border-top: 1px solid #ddd;
+        padding: 10px 0;
+        box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+      }
+      .footer-nav a {
+        background: #c50014;
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div
+        class="menu"
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+        "
+      >
+        <h1>Modificar Stock</h1>
+        <button id="refrescar-btn">Refrescar</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Aquí se crearán los paneles dinámicamente -->
+      <div id="contenedor-paneles"></div>
+
+      <div class="botones-abajo">
+        <button id="guardar-stock" class="btn-rojo">Guardar Cambios</button>
+      </div>
+    </main>
+
+    <footer class="footer-nav">
+      <a href="stock.html" class="btn-rojo">Volver a Stock</a>
+    </footer>
+
+    <script type="module" src="modificarStock.js"></script>
+  </body>
+</html>
