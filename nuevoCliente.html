@@ -14,19 +14,22 @@
         min-height: 100vh;
         display: flex;
         flex-direction: column;
+        background-color: #f4f7f6;
       }
       main {
         flex: 1;
         padding: 24px;
         max-width: 1200px;
         margin: 0 auto;
+        width: 100%;
+        box-sizing: border-box;
       }
       .panel {
         background: #fff;
         border-radius: 12px;
-        padding: 100px;
-        max-width: 900px;
-        width: 100%;
+        padding: 40px; /* Ajustado para que no sea tan excesivo como 100px */
+        max-width: 800px;
+        margin: 20px auto;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
       }
       h1,
@@ -34,135 +37,118 @@
         text-align: center;
         margin: 8px 0;
       }
-      form#pedido-form {
+      form {
         display: flex;
         flex-direction: column;
         gap: 12px;
-        align-items: center;
-        position: relative;
       }
-      .input-container {
-        width: 60%;
-        min-width: 320px;
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+      label {
+        font-weight: bold;
+        margin-bottom: 4px;
       }
       input[type="text"],
+      input[type="number"],
       select {
         width: 100%;
-        padding: 8px 10px;
+        padding: 10px;
         border-radius: 6px;
         border: 1px solid #ccc;
         box-sizing: border-box;
       }
-      .btn-guardar {
-        margin-top: 10px;
-        width: 50%;
-        padding: 10px 16px;
-        background: #2196f3;
-        border: none;
-        color: #fff;
+
+      /* --- CONTENEDOR DE BOTONES (MODIFICADO) --- */
+      .botones-cliente-container {
+        display: flex;
+        flex-wrap: wrap; /* Permite que los elementos salten de línea */
+        gap: 10px;
+        margin-top: 15px;
+        width: 100%;
+      }
+
+      /* Botón Agregar: Centrado y Ocupando el 100% */
+      #btn-agregar {
+        flex: 1 1 100%; /* Fuerza a que ocupe toda la fila superior */
+        background-color: #c50014;
+        color: white;
+        padding: 14px;
         border-radius: 6px;
+        font-weight: bold;
         cursor: pointer;
+        border: none;
+        font-size: 16px;
+        transition: filter 0.2s;
       }
-      .grupos-panels {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      .coleccion-panel {
+
+      /* Botones Modificar y Listado: Uno al lado del otro abajo */
+      #btn-modificar,
+      .btn-listado {
+        flex: 1; /* Se reparten el 50% cada uno */
+        min-width: 140px;
         padding: 12px;
-        border-radius: 10px;
-        background: #fafafa;
-      }
-      .fila {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: px 4px;
-        border-bottom: 1px solid #eee;
-        gap: 8px;
-      }
-      .celda {
-        flex: 1;
-        text-align: left;
-      }
-      .cantidad-input {
-        width: 90px;
-        padding: 6px;
-        text-align: center;
         border-radius: 6px;
-        border: 1px solid #ccc;
+        font-weight: bold;
+        cursor: pointer;
+        text-align: center;
+        text-decoration: none;
+        font-size: 14px;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
-      .activo {
-        background: #e8f3ff;
+
+      #btn-modificar {
+        background-color: #2196f3;
+        color: white;
       }
-      #sugerencias-lista {
-        position: absolute;
-        top: 100%;
-        left: 0;
+
+      .btn-listado {
+        background-color: #ff9800;
+        color: white;
+      }
+
+      #btn-agregar:hover,
+      #btn-modificar:hover,
+      .btn-listado:hover {
+        filter: brightness(0.9);
+      }
+
+      /* --- RESTO DE ESTILOS --- */
+      .boton-ventas-container {
         width: 100%;
-        max-height: 160px;
-        overflow: auto;
-        background: #fff;
-        border: 1px solid #ccc;
-        z-index: 2000;
+        margin-top: 30px;
+      }
+      .btn-ventas {
+        width: 100%;
+        padding: 15px;
+        border-radius: 6px;
+        font-weight: bold;
+        text-align: center;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #4caf50;
+        color: white;
+        box-sizing: border-box;
+      }
+
+      #sugerencias-lista-historial {
         list-style: none;
         padding: 0;
-        margin: 6px 0 0 0;
-        border-radius: 6px;
+        margin: 0;
+        border: 1px solid #ccc;
+        border-top: none;
+        background: white;
       }
-      #sugerencias-lista li {
-        padding: 8px 10px;
-        cursor: pointer;
-      }
-      #sugerencias-lista li:hover {
-        background: #f2f2f2;
-      }
-      .modal-overlay-custom {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.6);
-        justify-content: center;
-        align-items: center;
-        z-index: 3000;
-      }
-      .modal-content-custom {
-        background: #fff;
-        padding: 20px;
-        border-radius: 8px;
-        width: 90%;
-        max-width: 520px;
-        text-align: left;
-      }
-      .modal-buttons-custom {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        margin-top: 12px;
-      }
-      .modal-buttons-custom button,
-      .modal-buttons-custom a {
+      #sugerencias-lista-historial li {
         padding: 10px;
-        border: none;
-        border-radius: 6px;
         cursor: pointer;
-        font-weight: bold;
-        text-decoration: none;
-        text-align: center;
       }
-      .btn-accept {
-        background: #4caf50;
-        color: #fff;
+      #sugerencias-lista-historial li:hover {
+        background: #eee;
       }
-      .btn-cancel {
-        background: #f44336;
-        color: #fff;
-      }
+
       nav.footer-nav {
         position: fixed;
         bottom: 0;
@@ -174,6 +160,7 @@
         justify-content: center;
         gap: 8px;
         padding: 8px 0;
+        z-index: 1000;
       }
       nav.footer-nav a {
         background: #c50014;
@@ -182,20 +169,17 @@
         border-radius: 6px;
         text-decoration: none;
       }
-      label {
-        width: 100%;
-        display: block;
-        margin-bottom: 6px;
-        text-align: left;
+      .mensaje {
+        margin-top: 10px;
+        text-align: center;
+        font-weight: bold;
       }
     </style>
-
-    <script type="module" src="firebase.js"></script>
   </head>
   <body>
     <header class="header">
       <div class="menu">
-        <h1 style="text-align: center; color: rgb(0, 0, 0)">
+        <h1 style="text-align: center; color: #000; padding: 20px 0">
           Gestión de Clientes
         </h1>
       </div>
@@ -255,11 +239,21 @@
               required
             />
 
-            <button type="submit" class="btn-rojo" id="btn-agregar">
-              Agregar Cliente
-            </button>
+            <div class="botones-cliente-container">
+              <button type="submit" id="btn-agregar">Agregar Cliente</button>
 
-            <button type="button" id="btn-modificar">Modificar Cliente</button>
+              <button type="button" id="btn-modificar">
+                Modificar Cliente
+              </button>
+
+              <a href="clientes.html" class="btn-listado">
+                Listado de Clientes
+              </a>
+            </div>
+
+            <div class="boton-ventas-container">
+              <a href="ventas.html" class="btn-ventas">Informe de Ventas</a>
+            </div>
 
             <div class="mensaje" id="mensaje"></div>
           </form>
@@ -277,16 +271,25 @@
                 required
               />
             </div>
-            <button type="submit" class="btn-rojo" id="btn-buscar-historial">
+            <button
+              type="submit"
+              id="btn-buscar-historial"
+              style="
+                background-color: #c50014;
+                color: white;
+                padding: 12px;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+                margin-top: 10px;
+              "
+            >
               Buscar Historial
             </button>
           </form>
 
-          <div
-            class="mensaje"
-            id="mensaje-historial"
-            style="margin-top: 10px"
-          ></div>
+          <div class="mensaje" id="mensaje-historial"></div>
 
           <div
             style="
@@ -318,6 +321,7 @@
       <a href="stock.html">Stock</a>
     </nav>
 
+    <script type="module" src="firebase.js"></script>
     <script type="module" src="nuevoCliente.js"></script>
   </body>
 </html>

@@ -1,156 +1,390 @@
 import { db } from "./firebase.js";
 import {
-  collection,
-  doc,
-  getDoc,
-  onSnapshot,
-  query,
-  orderBy,
-  updateDoc,
-  deleteDoc,
-  setDoc,
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  updateDoc,
+  deleteDoc,
+  setDoc,
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
+// --- VARIABLES GLOBALES ---
+let pedidosGlobales = []; // Copia local para filtrado rápido sin costo de lectura
+
+// 1. INICIALIZAR EL LISTENER PRINCIPAL (Una sola vez)
+function iniciarEscuchaPedidos() {
+  const pedidosRef = collection(db, "Pedidos");
+  const q = query(pedidosRef, orderBy("fechaRegistro", "desc"));
+
+  onSnapshot(q, (snapshot) => {
+    pedidosGlobales = snapshot.docs;
+    renderPedidos();
+  });
+}
+
+// 2. FUNCIÓN DE RENDERIZADO OPTIMIZADA (Filtra en memoria)
+function renderPedidos() {
+  pedidosContainer.innerHTML = "";
+
+  const normNombre = normalizar(filtroNombre);
+  const normLocalidad = normalizar(filtroLocalidad);
+  const filtroFechaValida = filtroFecha.trim();
+
+  let pedidosFiltrados = pedidosGlobales.filter((doc) => {
+    const data = doc.data();
+    return (
+      (normNombre === "" ||
+        normalizar(data.Nombre || "").includes(normNombre)) &&
+      (filtroFechaValida === "" ||
+        (data.fechaEntrega || "") === filtroFechaValida) &&
+      (filtroCategoria === "Todos" ||
+        (data.categoria || "") === filtroCategoria) &&
+      (normLocalidad === "" ||
+        normalizar(data.Localidad || "").includes(normLocalidad)) &&
+      (filtroVendedor === "Todos" || (data.Vendedor || "") === filtroVendedor)
+    );
+  });
+
+  // 🔹 Limitar a 10 pedidos solo cuando NO hay filtros activos
+  let pedidosBase = pedidosFiltrados;
+
+  if (!hayFiltrosActivos() && !pedidoAbiertoId) {
+    pedidosBase = pedidosFiltrados.slice(0, 10);
+  }
+
+  const pedidosAMostrar = pedidoAbiertoId
+    ? pedidosFiltrados.filter((d) => d.id === pedidoAbiertoId)
+    : pedidosBase;
+
+  if (!pedidosFiltrados.length) {
+    pedidosContainer.innerHTML = `<p style="text-align:center;">No hay pedidos que coincidan.</p>`;
+    return;
+  }
+
+  pedidosAMostrar.forEach((pedidoDoc) => {
+    const elemento = crearElementoPedido(pedidoDoc, pedidoDoc.data());
+    pedidosContainer.appendChild(elemento);
+  });
+
+  renderBotonResumen(pedidosFiltrados);
+}
+
+// 4. HELPER PARA CARGAR IMÁGENES
+let cacheLogo = null;
+function cargarImagenLogo(src) {
+  if (cacheLogo) return Promise.resolve(cacheLogo);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => {
+      cacheLogo = img;
+      resolve(img);
+    };
+    img.onerror = reject;
+  });
+}
+
+// 5. BOTÓN DE RESUMEN
+function renderBotonResumen(pedidosFiltradosFinales) {
+  const resumenBtnContainer = document.createElement("div");
+  resumenBtnContainer.style.cssText = "margin: 20px 0; text-align: center;";
+
+  const btnResumen = document.createElement("button");
+  btnResumen.textContent = `📝 Generar Resumen Acumulado (${pedidosFiltradosFinales.length})`;
+  btnResumen.style.cssText =
+    "background-color: #ff9800; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;";
+
+  btnResumen.onclick = () => generarPDFAcumulado(pedidosFiltradosFinales);
+
+  resumenBtnContainer.appendChild(btnResumen);
+  pedidosContainer.appendChild(resumenBtnContainer);
+}
+
+// 🟣 DOM (ANTES DE ARRANCAR FIREBASE)
 const pedidosContainer = document.getElementById("pedidosContainer");
 const nombreInput = document.getElementById("nombreInput");
 const fechaInput = document.getElementById("fechaInput");
 const categoriaSelect = document.getElementById("categoriaSelect");
 const localidadInput = document.getElementById("localidadInput");
+const vendedorSelect = document.getElementById("vendedorSelect");
+
+// 🔵 INICIO CORRECTO DE LA APP
+document.addEventListener("DOMContentLoaded", () => {
+  iniciarEscuchaPedidos();
+});
 
 let filtroNombre = "";
 let filtroFecha = "";
 let filtroCategoria = "Todos";
 let filtroLocalidad = "";
+let filtroVendedor = "Todos";
 let pedidoAbiertoId = null;
 
 // ---------- CONSTANTES DE COLECCIONES ----------
 const coleccionesStock = [
-  "StockCarnicos", "StockFrigorBalde", "StockFrigorImpulsivos", "StockFrigorPostres",
-  "StockFrigorPotes", "StockGlupsGranel", "StockGlupsImpulsivos", "StockGudfud",
-  "StockInal", "StockLambweston", "StockMexcal", "StockOrale", "StockPripan", "StockSwift"
+  "StockCarnicos",
+  "StockFrigorBalde",
+  "StockFrigorImpulsivos",
+  "StockFrigorPostres",
+  "StockFrigorPotes",
+  "StockGlupsGranel",
+  "StockGlupsImpulsivos",
+  "StockGudfud",
+  "StockInal",
+  "StockLambweston",
+  "StockMexcal",
+  "StockOrale",
+  "StockPripan",
+  "StockSwift",
 ];
 
 const nombresColecciones = {
-  StockCarnicos: "Cárnicos",
-  StockFrigorBalde: "Frigor Baldes",
-  StockFrigorImpulsivos: "Frigor Impulsivos",
-  StockFrigorPostres: "Frigor Postres",
-  StockFrigorPotes: "Frigor Potes",
-  StockGlupsGranel: "Glups Granel",
-  StockGlupsImpulsivos: "Glup Impulsivos",
-  StockGudfud: "Gudfud",
-  StockInal: "Inal",
-  StockLambweston: "Lambweston",
-  StockMexcal: "Mexcal",
-  StockOrale: "Orale",
-  StockPripan: "Pripan",
-  StockSwift: "Swift"
+  StockCarnicos: "Cárnicos",
+  StockFrigorBalde: "Frigor Baldes",
+  StockFrigorImpulsivos: "Frigor Impulsivos",
+  StockFrigorPostres: "Frigor Postres",
+  StockFrigorPotes: "Frigor Potes",
+  StockGlupsGranel: "Glups Granel",
+  StockGlupsImpulsivos: "Glup Impulsivos",
+  StockGudfud: "Gudfud",
+  StockInal: "Inal",
+  StockLambweston: "Lambweston",
+  StockMexcal: "Mexcal",
+  StockOrale: "Orale",
+  StockPripan: "Pripan",
+  StockSwift: "Swift",
 };
 
 // 💡 Función de normalización para búsquedas sin acentos/mayúsculas
 function normalizar(str = "") {
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 // 🔹 Eventos de cambio de filtro
 nombreInput.addEventListener("input", () => {
-  filtroNombre = nombreInput.value;
-  renderPedidos();
+  filtroNombre = nombreInput.value;
+  renderPedidos();
 });
 
 fechaInput.addEventListener("input", () => {
-  filtroFecha = fechaInput.value;
-  renderPedidos();
+  filtroFecha = fechaInput.value;
+  renderPedidos();
 });
 
 categoriaSelect.addEventListener("change", () => {
-  filtroCategoria = categoriaSelect.value;
-  renderPedidos();
+  filtroCategoria = categoriaSelect.value;
+  renderPedidos();
 });
 
 localidadInput.addEventListener("input", () => {
-  filtroLocalidad = localidadInput.value;
-  renderPedidos();
+  filtroLocalidad = localidadInput.value;
+  renderPedidos();
+});
+
+vendedorSelect.addEventListener("change", () => {
+  filtroVendedor = vendedorSelect.value;
+  renderPedidos();
 });
 
 // -------------------------------------------------------------------
-// ## Borrar Pedido y Actualizar Stock 
+// ## Borrar Pedido y Actualizar Stock
 // -------------------------------------------------------------------
 
 async function borrarPedidoYActualizarStock(pedidoData, docId) {
-  if (
-    !confirm(
-      "¿Seguro que querés borrar el pedido? Todos los artículos volverán al stock."
-    )
-  )
-    return;
+  if (
+    !confirm(
+      "¿Seguro que querés borrar el pedido? Todos los artículos volverán al stock."
+    )
+  )
+    return;
 
-  try {
-    // 1. Pre-cargar el stock actual de TODAS las colecciones
-    const stockSnaps = await Promise.all(
-      coleccionesStock.map(col => getDoc(doc(db, col, "Stock")))
-    );
-    const stocksData = {};
-    stockSnaps.forEach((snap, index) => {
-      stocksData[coleccionesStock[index]] = snap.data() || {};
-    });
+  try {
+    // 1. Pre-cargar el stock actual de TODAS las colecciones
+    const stockSnaps = await Promise.all(
+      coleccionesStock.map((col) => getDoc(doc(db, col, "Stock")))
+    );
+    const stocksData = {};
+    stockSnaps.forEach((snap, index) => {
+      stocksData[coleccionesStock[index]] = snap.data() || {};
+    }); // 2. Procesar los productos del pedido para preparar las actualizaciones
 
-    // 2. Procesar los productos del pedido para preparar las actualizaciones
-    const productosPedidos = pedidoData.productos || {};
-    const updatesPorColeccion = {};
+    const productosPedidos = pedidoData.productos || {};
+    const updatesPorColeccion = {};
 
-    for (const [pedidoKey, detalle] of Object.entries(productosPedidos)) {
-      if (typeof detalle === "object") {
-        const coleccion = detalle.coleccion;
-        const producto = detalle.producto;
-        const cantidad = detalle.cantidad || 0;
+    for (const [pedidoKey, detalle] of Object.entries(productosPedidos)) {
+      if (typeof detalle === "object") {
+        const coleccion = detalle.coleccion;
+        const producto = detalle.producto;
+        const cantidad = detalle.cantidad || 0;
 
-        if (coleccion && producto && cantidad > 0) {
-          const stockActual = stocksData[coleccion]?.[producto] || 0;
-          
-          if (!updatesPorColeccion[coleccion]) {
-            updatesPorColeccion[coleccion] = {};
-          }
+        if (coleccion && producto && cantidad > 0) {
+          const stockActual = stocksData[coleccion]?.[producto] || 0;
+          if (!updatesPorColeccion[coleccion]) {
+            updatesPorColeccion[coleccion] = {};
+          } // Sumar la cantidad devuelta al stock
 
-          // Sumar la cantidad devuelta al stock
-          updatesPorColeccion[coleccion][producto] = stockActual + cantidad;
-        }
-      }
-    }
-    
-    // 3. Ejecutar las actualizaciones de stock en Firebase
-    const updatePromises = [];
-    for (const [col, updates] of Object.entries(updatesPorColeccion)) {
-      if (Object.keys(updates).length > 0) {
-        const ref = doc(db, col, "Stock");
-        // Usamos setDoc con merge para actualizar solo los campos modificados
-        updatePromises.push(setDoc(ref, updates, { merge: true }));
-      }
-    }
-    
-    await Promise.all(updatePromises);
+          updatesPorColeccion[coleccion][producto] = stockActual + cantidad;
+        }
+      }
+    } // 3. Ejecutar las actualizaciones de stock en Firebase
+    const updatePromises = [];
+    for (const [col, updates] of Object.entries(updatesPorColeccion)) {
+      if (Object.keys(updates).length > 0) {
+        const ref = doc(db, col, "Stock"); // Usamos setDoc con merge para actualizar solo los campos modificados
+        updatePromises.push(setDoc(ref, updates, { merge: true }));
+      }
+    }
+    await Promise.all(updatePromises); // 4. Borrar el pedido
 
-    // 4. Borrar el pedido
-    await deleteDoc(doc(db, "Pedidos", docId));
+    await deleteDoc(doc(db, "Pedidos", docId));
 
-    pedidoAbiertoId = null;
-    alert("Pedido borrado y stock actualizado.");
-  } catch (e) {
-    alert("Error al borrar/actualizar stock: " + e);
-    console.error(e);
-  }
+    pedidoAbiertoId = null;
+    alert("Pedido borrado y stock actualizado.");
+  } catch (e) {
+    alert("Error al borrar/actualizar stock: " + e);
+    console.error(e);
+  }
 }
 
 async function borrarPedidoSinStock(docId) {
-  if (!confirm("¿Confirmás que el pedido fue entregado?")) return;
+  if (!confirm("¿Confirmás que el pedido fue entregado?")) return;
 
-  try {
-    await deleteDoc(doc(db, "Pedidos", docId));
-    pedidoAbiertoId = null;
-    alert("Pedido marcado como entregado.");
-  } catch (e) {
-    alert("Error al borrar el pedido: " + e);
-  }
+  try {
+    const pedidoRef = doc(db, "Pedidos", docId);
+    const pedidoSnap = await getDoc(pedidoRef);
+
+    if (!pedidoSnap.exists()) {
+      alert("Pedido no encontrado");
+      return;
+    }
+
+    const pedidoData = pedidoSnap.data();
+
+    // 👉 Guardar historial del cliente
+    await guardarHistorialCliente(pedidoData);
+    await guardarVenta(docId, pedidoData);
+
+    // 👉 Borrar pedido
+    await deleteDoc(pedidoRef);
+
+    pedidoAbiertoId = null;
+    alert("Pedido entregado y guardado en historial del cliente.");
+  } catch (e) {
+    console.error(e);
+    alert("Error al confirmar el pedido: " + e);
+  }
+}
+
+async function guardarHistorialCliente(pedidoData) {
+  try {
+    const nombreCliente = pedidoData.Nombre;
+    if (!nombreCliente) return;
+
+    const fecha = new Date();
+    const periodo = `${fecha.getFullYear()}-${String(
+      fecha.getMonth() + 1
+    ).padStart(2, "0")}`;
+
+    const clienteRef = doc(db, "Clientes", nombreCliente);
+    const clienteSnap = await getDoc(clienteRef);
+
+    if (!clienteSnap.exists()) return;
+
+    const clienteData = clienteSnap.data();
+    const historialActual = clienteData.historial || {};
+    const historialPeriodo = historialActual[periodo] || {};
+
+    const productos = pedidoData.productos || {};
+
+    Object.values(productos).forEach((detalle) => {
+      if (!detalle || !detalle.producto) return;
+
+      const producto = detalle.producto;
+      const cantidad = detalle.cantidad || 0;
+
+      if (cantidad > 0) {
+        historialPeriodo[producto] =
+          (historialPeriodo[producto] || 0) + cantidad;
+      }
+    });
+
+    await updateDoc(clienteRef, {
+      [`historial.${periodo}`]: historialPeriodo,
+    });
+  } catch (err) {
+    console.error("Error guardando historial:", err);
+  }
+}
+
+async function guardarVenta(pedidoId, pedidoData) {
+  // 📄 Documento con el mismo ID que el pedido
+  const ventaRef = doc(db, "Ventas", pedidoId);
+
+  // 📅 Fecha en formato dd/mm/aaaa
+  //const fechaEntrega = new Date().toLocaleDateString("es-AR");
+
+  // 🔹 Determinar colección de precios (MISMA lógica que el PDF)
+  function coleccionPreciosParaCategoria(categoria) {
+    if (!categoria) return "PreciosExpress";
+    const c = categoria.toString().toLowerCase().trim();
+
+    const mapa = {
+      express: "PreciosExpress",
+      store: "PreciosStore",
+      gastronómico: "PreciosGastronomico",
+      gastronomico: "PreciosGastronomico",
+      franquicia: "PreciosFranquicia",
+      supermercados: "PreciosSupermercados",
+      supermercado: "PreciosSupermercados",
+      factura: "PreciosExpress",
+      remito: "PreciosExpress",
+    };
+    return mapa[c] || "PreciosExpress";
+  }
+
+  const nombreColeccionPrecios = coleccionPreciosParaCategoria(
+    pedidoData.categoria
+  );
+
+  // 📥 Leer precios reales
+  const preciosSnap = await getDoc(doc(db, "Precios", "Precio"));
+  const preciosData = preciosSnap.exists() ? preciosSnap.data() : {};
+
+  const productos = pedidoData.productos || {};
+  const productosMap = {};
+  let total = 0;
+
+  // 🔁 MISMO cálculo que el PDF
+  Object.values(productos).forEach((detalle) => {
+    if (!detalle || !detalle.producto) return;
+
+    const cantidad = detalle.cantidad || 0;
+    const precioUnitario = preciosData[detalle.producto] || 0;
+
+    if (cantidad > 0) {
+      total += cantidad * precioUnitario;
+      productosMap[detalle.producto] = cantidad;
+    }
+  });
+
+  // 💾 Guardar venta
+  await setDoc(ventaRef, {
+    fechaEntrega: pedidoData.fechaEntrega || "",
+    cliente: pedidoData.Nombre || "",
+    Localidad: pedidoData.Localidad || "",
+    direccion: pedidoData.Direccion || "",
+    tipoDocumento: pedidoData.categoria || "", // factura / remito
+    NumeroRemito: pedidoData.NumeroRemito || "",
+    total: Number(total.toFixed(2)), // EXACTAMENTE el mismo número del PDF
+    productos: productosMap,
+  });
 }
 
 // -------------------------------------------------------------------
@@ -162,47 +396,48 @@ window.generarPDF = async function (pedidoId) {
   try {
     const pedidoRef = doc(db, "Pedidos", pedidoId);
     const pedidoSnap = await getDoc(pedidoRef);
+    const { jsPDF } = window.jspdf;
+    const docPDF = new jsPDF({ format: "a4", unit: "mm" });
+
+    const idsSnap = await getDoc(doc(db, "idProductos", "idProducto"));
+    const idsData = idsSnap.exists() ? idsSnap.data() : {};
     if (!pedidoSnap.exists()) {
       alert("Pedido no encontrado ❌");
       return;
     }
 
-    const data = pedidoSnap.data();
-    
-    // NEW: seleccionar la colección de precios según data.categoria
-    function coleccionPreciosParaCategoria(categoria) {
-      if (!categoria) return "PreciosExpress";
-      const c = categoria.toString().toLowerCase().trim();
+    const data = pedidoSnap.data(); // NEW: seleccionar la colección de precios según data.categoria
+    function coleccionPreciosParaCategoria(categoria) {
+      if (!categoria) return "PreciosExpress";
+      const c = categoria.toString().toLowerCase().trim();
 
-      const mapa = {
-        "express": "PreciosExpress",
-        "store": "PreciosStore",
-        "gastronómico": "PreciosGastronomico",
-        "gastronomico": "PreciosGastronomico",
-        "franquicia": "PreciosFranquicia",
-        "supermercados": "PreciosSupermercados",
-        "supermercado": "PreciosSupermercados",
-        "otro": "PreciosExpress",
-        "remito": "PreciosExpress", // Asumiendo default para remito/factura
-        "factura": "PreciosExpress",
-        "ingrese categoría": "PreciosExpress"
-      };
-      return mapa[c] || "PreciosExpress"; 
-    }
+      const mapa = {
+        express: "PreciosExpress",
+        store: "PreciosStore",
+        gastronómico: "PreciosGastronomico",
+        gastronomico: "PreciosGastronomico",
+        franquicia: "PreciosFranquicia",
+        supermercados: "PreciosSupermercados",
+        supermercado: "PreciosSupermercados",
+        otro: "PreciosExpress",
+        remito: "PreciosExpress", // Asumiendo default para remito/factura
+        factura: "PreciosExpress",
+        "ingrese categoría": "PreciosExpress",
+      };
+      return mapa[c] || "PreciosExpress";
+    }
 
-    const nombreColeccionPrecios = coleccionPreciosParaCategoria(data.categoria);
+    const nombreColeccionPrecios = coleccionPreciosParaCategoria(
+      data.categoria
+    ); // 1. Obtener referencias y datos necesarios para el PDF
 
-    // 1. Obtener referencias y datos necesarios para el PDF
-    const preciosSnap = await getDoc(doc(db, "Precios", "Precio"));
-    const preciosData = preciosSnap.exists() ? preciosSnap.data() : {};
-    
-    // 2. Clasificar artículos del pedido
-    const productosPedidos = data.productos || {};
+    const preciosSnap = await getDoc(doc(db, "Precios", "Precio"));
+    const preciosData = preciosSnap.exists() ? preciosSnap.data() : {}; // 2. Clasificar artículos del pedido
+    const productosPedidos = data.productos || {};
     const grupos = {};
-    coleccionesStock.forEach(col => grupos[col] = []);
+    coleccionesStock.forEach((col) => (grupos[col] = [])); // Llenar los grupos (ej. grupos["StockCarnicos"] = ["Asado", "Chorizo"])
 
-    // Llenar los grupos (ej. grupos["StockCarnicos"] = ["Asado", "Chorizo"])
-   Object.keys(productosPedidos).forEach(key => {
+    Object.keys(productosPedidos).forEach((key) => {
       const detalle = productosPedidos[key];
       if (detalle && detalle.coleccion && detalle.producto) {
         const cantidad = detalle.cantidad || 0;
@@ -210,15 +445,15 @@ window.generarPDF = async function (pedidoId) {
           grupos[detalle.coleccion].push(detalle.producto);
         }
       }
-    });
+    }); // 3. Mostrar el modal de configuración
 
-    // 3. Mostrar el modal de configuración
-     mostrarModalRemito({
+    mostrarModalRemito({
       pedidoId,
       data,
       preciosData,
       grupos: grupos,
-      productosPedidos: productosPedidos
+      productosPedidos: productosPedidos,
+      idsData,
     });
   } catch (err) {
     console.error("Error inicializando PDF:", err);
@@ -230,7 +465,14 @@ window.generarPDF = async function (pedidoId) {
 // 💡 FUNCIÓN MODAL DE CONFIGURACIÓN (Remito Individual)
 // =========================================================================
 
-function mostrarModalRemito({ pedidoId, data, preciosData, grupos, productosPedidos }) {
+function mostrarModalRemito({
+  pedidoId,
+  data,
+  preciosData,
+  grupos,
+  productosPedidos,
+  idsData,
+}) {
   let modal = document.getElementById("configuracion-remito-modal");
   if (!modal) {
     modal = document.createElement("div");
@@ -308,10 +550,16 @@ function mostrarModalRemito({ pedidoId, data, preciosData, grupos, productosPedi
 
   const generarBtn = document.getElementById("generar-remito-final");
   generarBtn.onclick = () => {
-    const ocultarPrecios = document.getElementById("ocultar-precios-check").checked;
-    const descuentoPorcentaje = parseFloat(document.getElementById("porcentaje-input").value) || 0; // Ej: 10
-    const descuentoEfectivo = parseFloat(document.getElementById("efectivo-input").value) || 0; // Ej: 100
-    const observaciones = document.getElementById("observaciones-input").value.trim();
+    const ocultarPrecios = document.getElementById(
+      "ocultar-precios-check"
+    ).checked;
+    const descuentoPorcentaje =
+      parseFloat(document.getElementById("porcentaje-input").value) || 0; // Ej: 10
+    const descuentoEfectivo =
+      parseFloat(document.getElementById("efectivo-input").value) || 0; // Ej: 100
+    const observaciones = document
+      .getElementById("observaciones-input")
+      .value.trim();
 
     modal.style.display = "none";
 
@@ -323,8 +571,9 @@ function mostrarModalRemito({ pedidoId, data, preciosData, grupos, productosPedi
       productosPedidos,
       ocultarPrecios,
       descuentoPorcentaje, // porcentaje (no decimal)
-      descuentoEfectivo,   // monto en pesos
+      descuentoEfectivo, // monto en pesos
       observaciones,
+      idsData,
     });
   };
 }
@@ -333,204 +582,259 @@ function mostrarModalRemito({ pedidoId, data, preciosData, grupos, productosPedi
 // 💡 FUNCIÓN REUTILIZABLE PARA DIBUJAR UN REMITO (Remito Individual)
 // =========================================================================
 
-async function drawRemito(docPDF, logoImg, tipoCopia, { data, preciosData, grupos, productosPedidos, ocultarPrecios, descuentoPorcentaje = 0, descuentoEfectivo = 0, observaciones, flete = 0 }) {
-    const nombreCliente = data.Nombre || "-";
-    const direccion = data.Direccion || "-";
-    const localidad = data.Localidad || "-";
-    const nombreLocal = data.Local || "-";
+async function drawRemito(
+  docPDF,
+  logoImg,
+  tipoCopia,
+  {
+    data,
+    preciosData,
+    grupos,
+    productosPedidos,
+    ocultarPrecios,
+    descuentoPorcentaje = 0,
+    descuentoEfectivo = 0,
+    observaciones,
+    flete = 0,
+    idsData,
+  }
+) {
+  const nombreCliente = data.Nombre || "-";
+  const direccion = data.Direccion || "-";
+  const localidad = data.Localidad || "-";
+  const nombreLocal = data.Local || "-";
 
-    const marginLeft = 10;
-    const pageWidth = docPDF.internal.pageSize.getWidth();
-    let y = 10;
+  const marginLeft = 10;
+  const pageWidth = docPDF.internal.pageSize.getWidth();
+  let y = 10;
 
-    // --- ENCABEZADO FIJO ---
-    docPDF.addImage(logoImg, "PNG", marginLeft, y, 50, 20);
-    y += 25;
+  // --- ENCABEZADO FIJO ---
+  docPDF.addImage(logoImg, "PNG", marginLeft, y, 50, 20);
+  y += 25;
 
+  docPDF.setFont("helvetica", "normal");
+  docPDF.setFontSize(10);
+  docPDF.text("FROST CARGO SAS", marginLeft, y);
+  y += 5;
+  docPDF.text("Benjamin Franklin 1557", marginLeft, y);
+  y += 5;
+  docPDF.text("(5850) RIO TERCERO (Cba.) Tel: 3571-528075", marginLeft, y);
+  y += 5;
+  docPDF.setFontSize(8);
+  docPDF.text("Responsable Inscripto", marginLeft, y);
+
+  y = 20;
+  docPDF.setFont("helvetica", "bold");
+  docPDF.setFontSize(14);
+  docPDF.text(`REMITO - COPIA ${tipoCopia}`, pageWidth - 10, y, {
+    align: "right",
+  });
+  y += 8;
+
+  docPDF.setFont("helvetica", "normal");
+  docPDF.setFontSize(9);
+  docPDF.text("DOCUMENTO NO VALIDO COMO FACTURA", pageWidth - 10, y, {
+    align: "right",
+  });
+  y += 7;
+
+  const numeroRemito = data.NumeroRemito ?? 0;
+  docPDF.text(
+    `N° ${numeroRemito.toString().padStart(8, "0")}`,
+    pageWidth - 10,
+    y,
+    { align: "right" }
+  );
+  y += 7;
+  docPDF.setFontSize(8);
+  docPDF.text(
+    "CUIT: 30-71857453-2   Ing. Brutos: 280-703834",
+    pageWidth - 10,
+    y,
+    { align: "right" }
+  );
+  y += 5;
+  docPDF.text("Fecha de Inicio Act.: 01/05/2010", pageWidth - 10, y, {
+    align: "right",
+  });
+  y += 3;
+
+  // Línea separadora
+  docPDF.setLineWidth(0.5);
+  docPDF.line(marginLeft, y, pageWidth - marginLeft, y);
+  y += 5;
+
+  // --- DATOS DEL CLIENTE ---
+  docPDF.setFont("helvetica", "normal");
+  docPDF.setFontSize(13);
+  docPDF.text(`${nombreCliente} (${nombreLocal})`, 10, y);
+  y += 5;
+  docPDF.text(`${direccion}, ${localidad}`, 10, y);
+  y += 10;
+
+  let subtotal = 0; // acumulador de precios antes de descuentos
+  // --- FUNCIÓN PARA CONSTRUIR CADA GRUPO ---
+  function buildGrupoPDF(nombreColeccion, items) {
+    if (!items.length) return;
+    items.sort((a, b) => a.localeCompare(b));
+
+    const titulo = nombresColecciones[nombreColeccion] || nombreColeccion;
+
+    // Título del grupo
+    docPDF.setFont("helvetica", "bold");
+    docPDF.setFontSize(13);
+    docPDF.text(titulo, 10, y);
+
+    const textWidth = docPDF.getTextWidth(titulo);
+    docPDF.setLineWidth(0.5);
+    docPDF.line(10, y + 1, 10 + textWidth, y + 1);
+
+    y += 7;
+    let totalGrupo = 0;
+    const rowSpacing = 5;
+    const maxY = 280;
+
+    items.forEach((prod) => {
+      const pedidoKey = `${nombreColeccion}::${prod}`;
+      const detalle = productosPedidos[pedidoKey] || {};
+      const cantidad = detalle.cantidad || 0;
+      const total = cantidad;
+      if (total === 0) return;
+
+      totalGrupo += total;
+
+      const precioUnitario = preciosData[prod] ?? 0;
+      const precioTotal = total * precioUnitario;
+
+      // Acumular en subtotal (si tenemos precios)
+      subtotal += precioTotal;
+
+      const idProducto = idsData[prod] || "SIN-ID";
+
+      // Cantidad en negrita
+      docPDF.setFont("helvetica", "bold");
+      docPDF.setFontSize(11);
+      docPDF.text(total.toString(), 13, y);
+
+      // ID + Producto en normal
+      docPDF.setFont("helvetica", "normal");
+      docPDF.text(`-  ${prod.charAt(0).toUpperCase() + prod.slice(1)}`, 18, y);
+
+      if (!ocultarPrecios) {
+        docPDF.text(`$${precioTotal.toFixed(2)}`, pageWidth - 10, y, {
+          align: "right",
+        });
+      }
+
+      y += rowSpacing;
+      if (y > maxY) {
+        docPDF.addPage();
+        y = 20;
+      }
+    });
+  }
+  // --- GENERAR GRUPOS DINÁMICAMENTE ---
+  coleccionesStock.forEach((col) => {
+    buildGrupoPDF(col, grupos[col]);
+  });
+
+  // --- TOTALES Y OPCIONALES ---
+  y += 5;
+
+  // Si ocultamos precios, mostramos como antes (total de unidades)
+  const totalProductos = Object.values(productosPedidos).reduce(
+    (sum, item) => sum + (item.cantidad || 0),
+    0
+  );
+
+  if (!ocultarPrecios) {
+    // Mostrar SUBTOTAL
     docPDF.setFont("helvetica", "normal");
     docPDF.setFontSize(10);
-    docPDF.text("FROST CARGO SAS", marginLeft, y); y += 5;
-    docPDF.text("Benjamin Franklin 1557", marginLeft, y); y += 5;
-    docPDF.text("(5850) RIO TERCERO (Cba.) Tel: 3571-528075", marginLeft, y); y += 5;
-    docPDF.setFontSize(8);
-    docPDF.text("Responsable Inscripto", marginLeft, y); 
-
-    y = 20;
-    docPDF.setFont("helvetica", "bold");
-    docPDF.setFontSize(14);
-    docPDF.text(`REMITO - COPIA ${tipoCopia}`, pageWidth - 10, y, { align: "right" });
-    y += 8;
-
-    docPDF.setFont("helvetica", "normal");
-    docPDF.setFontSize(9);
-    docPDF.text("DOCUMENTO NO VALIDO COMO FACTURA", pageWidth - 10, y, { align: "right" });
-    y += 7;
-
-    const numeroRemito = data.NumeroRemito ?? 0;
-    docPDF.text(`N° ${numeroRemito.toString().padStart(8, "0")}`, pageWidth - 10, y, { align: "right" });
-    y += 7;
-    docPDF.setFontSize(8);
-    docPDF.text("CUIT: 30-71857453-2   Ing. Brutos: 280-703834", pageWidth - 10, y, { align: "right" });
-    y += 5;
-    docPDF.text("Fecha de Inicio Act.: 01/05/2010", pageWidth - 10, y, { align: "right" });
-    y += 3;
-
-    // Línea separadora
-    docPDF.setLineWidth(0.5);
-    docPDF.line(marginLeft, y, pageWidth - marginLeft, y);
-    y += 5;
-
-    // --- DATOS DEL CLIENTE ---
-    docPDF.setFont("helvetica", "normal");
-    docPDF.setFontSize(13);
-    docPDF.text(`${nombreCliente} (${nombreLocal})`, 10, y);
-    y += 5;
-    docPDF.text(`${direccion}, ${localidad}`, 10, y);
-    y += 10;
-
-    let subtotal = 0; // acumulador de precios antes de descuentos
-    // --- FUNCIÓN PARA CONSTRUIR CADA GRUPO ---
-    function buildGrupoPDF(nombreColeccion, items) {
-        if (!items.length) return;
-        items.sort((a, b) => a.localeCompare(b));
-
-        const titulo = nombresColecciones[nombreColeccion] || nombreColeccion;
-
-        // Título del grupo
-        docPDF.setFont("helvetica", "bold");
-        docPDF.setFontSize(13);
-        docPDF.text(titulo, 10, y);
-
-        const textWidth = docPDF.getTextWidth(titulo);
-        docPDF.setLineWidth(0.5);
-        docPDF.line(10, y + 1, 10 + textWidth, y + 1);
-
-        y += 7;
-        let totalGrupo = 0;
-        const rowSpacing = 5;
-        const maxY = 280;
-
-        items.forEach((prod) => {
-            const pedidoKey = `${nombreColeccion}::${prod}`;
-            const detalle = productosPedidos[pedidoKey] || {};
-            const cantidad = detalle.cantidad || 0;
-            const total = cantidad;
-            if (total === 0) return;
-
-            totalGrupo += total;
-
-            const precioUnitario = preciosData[prod] ?? 0;
-            const precioTotal = total * precioUnitario;
-
-            // Acumular en subtotal (si tenemos precios)
-            subtotal += precioTotal;
-
-            docPDF.setFont("helvetica", "normal");
-            docPDF.setFontSize(11);
-            docPDF.text(
-                `${total} - ${prod.charAt(0).toUpperCase() + prod.slice(1)}`,
-                13,
-                y
-            );
-
-            if (!ocultarPrecios) {
-                docPDF.text(
-                    `$${precioTotal.toFixed(2)}`,
-                    pageWidth - 10,
-                    y,
-                    { align: "right" }
-                );
-            }
-
-            y += rowSpacing;
-            if (y > maxY) {
-                docPDF.addPage();
-                y = 20;
-            }
-        });
-
-        y += 1;
-        docPDF.setFont("helvetica", "bold");
-        docPDF.setFontSize(10);
-        docPDF.text(`Total unidades en ${titulo}: ${totalGrupo}`, 10, y);
-        y += 8;
-    }
-
-    // --- GENERAR GRUPOS DINÁMICAMENTE ---
-    coleccionesStock.forEach(col => {
-      buildGrupoPDF(col, grupos[col]);
+    docPDF.text(`SUBTOTAL: $${subtotal.toFixed(2)}`, pageWidth - 10, y, {
+      align: "right",
     });
+    y += 6;
 
-    // --- TOTALES Y OPCIONALES ---
-    y += 5;
-
-    // Si ocultamos precios, mostramos como antes (total de unidades)
-    const totalProductos = Object.values(productosPedidos).reduce((sum, item) => sum + (item.cantidad || 0), 0);
-
-    if (!ocultarPrecios) {
-        // Mostrar SUBTOTAL
-        docPDF.setFont("helvetica", "normal");
-        docPDF.setFontSize(10);
-        docPDF.text(`SUBTOTAL: $${subtotal.toFixed(2)}`, pageWidth - 10, y, { align: "right" });
-        y += 6;
-
-        // Aplicar descuento porcentual (si existe)
-        let descuentoPorcMonto = 0;
-        if (descuentoPorcentaje && descuentoPorcentaje > 0) {
-            descuentoPorcMonto = subtotal * (descuentoPorcentaje / 100);
-            docPDF.text(`Descuento (${descuentoPorcentaje}%): - $${descuentoPorcMonto.toFixed(2)}`, pageWidth - 10, y, { align: "right" });
-            y += 6;
-        }
-
-        // Aplicar descuento en efectivo (si existe)
-        let descuentoEfectMonto = 0;
-        if (descuentoEfectivo && descuentoEfectivo > 0) {
-            descuentoEfectMonto = descuentoEfectivo;
-            docPDF.text(`Descuento Efectivo: - $${descuentoEfectMonto.toFixed(2)}`, pageWidth - 10, y, { align: "right" });
-            y += 6;
-        }
-
-        // Agregar Flete si existe
-        if (flete > 0) {
-            docPDF.text(`Flete/Transporte: $${flete.toFixed(2)}`, pageWidth - 10, y, { align: "right" });
-            y += 6;
-        }
-
-        // Calcular total final (no menor a 0)
-        let totalGeneral = subtotal - descuentoPorcMonto - descuentoEfectMonto + (flete || 0);
-        if (totalGeneral < 0) totalGeneral = 0;
-
-        docPDF.setFont("helvetica", "bold");
-        docPDF.setFontSize(12);
-        docPDF.text(`TOTAL FINAL: $${totalGeneral.toFixed(2)}`, pageWidth - 10, y, { align: "right" });
-        y += 10;
-    } else {
-        // Si precios ocultos: sólo mostrar total de unidades como antes
-        docPDF.setFont("helvetica", "bold");
-        docPDF.setFontSize(12);
-        docPDF.text(`TOTAL FINAL DE UNIDADES: ${totalProductos}`, pageWidth - 10, y, { align: "right" });
-        y += 10;
+    // Aplicar descuento porcentual (si existe)
+    let descuentoPorcMonto = 0;
+    if (descuentoPorcentaje && descuentoPorcentaje > 0) {
+      descuentoPorcMonto = subtotal * (descuentoPorcentaje / 100);
+      docPDF.text(
+        `Descuento (${descuentoPorcentaje}%): - $${descuentoPorcMonto.toFixed(
+          2
+        )}`,
+        pageWidth - 10,
+        y,
+        { align: "right" }
+      );
+      y += 6;
     }
 
-    // --- PIE DE PÁGINA (FIRMAS) ---
+    // Aplicar descuento en efectivo (si existe)
+    let descuentoEfectMonto = 0;
+    if (descuentoEfectivo && descuentoEfectivo > 0) {
+      descuentoEfectMonto = descuentoEfectivo;
+      docPDF.text(
+        `Descuento Efectivo: - $${descuentoEfectMonto.toFixed(2)}`,
+        pageWidth - 10,
+        y,
+        { align: "right" }
+      );
+      y += 6;
+    }
+
+    // Agregar Flete si existe
+    if (flete > 0) {
+      docPDF.text(`Flete/Transporte: $${flete.toFixed(2)}`, pageWidth - 10, y, {
+        align: "right",
+      });
+      y += 6;
+    }
+
+    // Calcular total final (no menor a 0)
+    let totalGeneral =
+      subtotal - descuentoPorcMonto - descuentoEfectMonto + (flete || 0);
+    if (totalGeneral < 0) totalGeneral = 0;
+
+    docPDF.setFont("helvetica", "bold");
+    docPDF.setFontSize(12);
+    docPDF.text(`TOTAL FINAL: $${totalGeneral.toFixed(2)}`, pageWidth - 10, y, {
+      align: "right",
+    });
+    y += 10;
+  } else {
+    // Si precios ocultos: sólo mostrar total de unidades como antes
+    docPDF.setFont("helvetica", "bold");
+    docPDF.setFontSize(12);
+    docPDF.text(
+      `TOTAL FINAL DE UNIDADES: ${totalProductos}`,
+      pageWidth - 10,
+      y,
+      { align: "right" }
+    );
+    y += 10;
+  }
+
+  // --- PIE DE PÁGINA (FIRMAS) ---
+  docPDF.setFont("helvetica", "normal");
+  docPDF.setFontSize(8);
+  docPDF.text("Recibí(mos) Conforme", 10, y);
+  docPDF.text("Firma: ____________________", 160, y);
+  y += 5;
+  docPDF.text("Aclaración: ________________", 160, y);
+  y += 5;
+
+  // Observaciones
+  if (observaciones) {
+    if (y > 290) {
+      docPDF.addPage();
+      y = 20;
+    }
     docPDF.setFont("helvetica", "normal");
-    docPDF.setFontSize(8);
-    docPDF.text("Recibí(mos) Conforme", 10, y);
-    docPDF.text("Firma: ____________________", 160, y);
-    y += 5;
-    docPDF.text("Aclaración: ________________", 160, y);
-    y += 5;
-
-    // Observaciones
-    if (observaciones) {
-        if (y > 290) {
-            docPDF.addPage();
-            y = 20;
-        }
-        docPDF.setFont("helvetica", "normal");
-        docPDF.setFontSize(11);
-        docPDF.text(`Observaciones: ${observaciones}`, 10, y);
-    }
+    docPDF.setFontSize(11);
+    docPDF.text(`Observaciones: ${observaciones}`, 10, y);
+  }
 }
 
 // =========================================================================
@@ -547,6 +851,7 @@ async function _generarRemitoFinal({
   descuentoPorcentaje = 0,
   descuentoEfectivo = 0,
   observaciones,
+  idsData,
 }) {
   const { jsPDF } = window.jspdf;
   const docPDF = new jsPDF({ format: "legal", unit: "mm" });
@@ -572,7 +877,8 @@ async function _generarRemitoFinal({
     descuentoEfectivo,
     observaciones,
     // si querés seguir usando 'flete' (monto), podés pasarlo aquí también:
-    flete: 0
+    flete: 0,
+    idsData,
   });
 
   // 2. Agregar una nueva página para el DUPLICADO
@@ -589,171 +895,171 @@ async function _generarRemitoFinal({
     descuentoPorcentaje,
     descuentoEfectivo,
     observaciones,
-    flete: 0
+    flete: 0,
+    idsData,
   });
 
   docPDF.save(`${pedidoId}.pdf`);
 }
 
+function hayFiltrosActivos() {
+  return (
+    filtroNombre.trim() !== "" ||
+    filtroFecha.trim() !== "" ||
+    filtroCategoria !== "Todos" ||
+    filtroLocalidad.trim() !== "" ||
+    filtroVendedor !== "Todos"
+  );
+}
 
 // -------------------------------------------------------------------
-// ## Crear Elemento Pedido 
+// ## Crear Elemento Pedido
 // -------------------------------------------------------------------
 
 function crearElementoPedido(pedidoDoc, data) {
-  const container = document.createElement("div");
-  container.className = "panel";
-  container.style.marginBottom = "12px";
-  container.style.padding = "12px";
+  const container = document.createElement("div");
+  container.className = "panel";
+  container.style.marginBottom = "12px";
+  container.style.padding = "12px";
 
-  const header = document.createElement("div");
-  header.style.display = "flex";
-  header.style.justifyContent = "space-between";
-  header.style.alignItems = "center";
+  const header = document.createElement("div");
+  header.style.display = "flex";
+  header.style.justifyContent = "space-between";
+  header.style.alignItems = "center";
 
-  const title = document.createElement("strong");
-  title.textContent = `${data.categoria} - ${pedidoDoc.id}`;
-  header.appendChild(title);
+  const title = document.createElement("strong");
+  title.textContent = `${data.categoria} - ${pedidoDoc.id}`;
+  header.appendChild(title);
 
-  const toggleBtn = document.createElement("button");
-  toggleBtn.textContent = pedidoAbiertoId === pedidoDoc.id ? "▲" : "▼";
-  toggleBtn.addEventListener("click", () => {
-    pedidoAbiertoId = pedidoAbiertoId === pedidoDoc.id ? null : pedidoDoc.id;
-    renderPedidos();
-  });
-  header.appendChild(toggleBtn);
-  container.appendChild(header);
+  const toggleBtn = document.createElement("button");
+  toggleBtn.textContent = pedidoAbiertoId === pedidoDoc.id ? "▲" : "▼";
+  toggleBtn.addEventListener("click", () => {
+    pedidoAbiertoId = pedidoAbiertoId === pedidoDoc.id ? null : pedidoDoc.id;
+    renderPedidos();
+  });
+  header.appendChild(toggleBtn);
+  container.appendChild(header);
 
-  if (pedidoAbiertoId === pedidoDoc.id) {
-    const productosPedidos = data.productos || {};
-    const articulosKeys = Object.keys(productosPedidos);
-      
-    const detallesContainer = document.createElement("div");
-    detallesContainer.style.marginTop = "12px";
+  if (pedidoAbiertoId === pedidoDoc.id) {
+    const productosPedidos = data.productos || {};
+    const articulosKeys = Object.keys(productosPedidos);
+    const detallesContainer = document.createElement("div");
+    detallesContainer.style.marginTop = "12px"; // Función asíncrona inmediata para cargar stock y renderizar detalles
 
-    // Función asíncrona inmediata para cargar stock y renderizar detalles
-    (async () => {
-      // No necesitamos cargar todo el stock aquí, solo necesitamos los detalles del pedido
-      // El mapeo de colecciones y productos ya está en `productosPedidos`
-      
-      const grupos = {};
-      coleccionesStock.forEach(col => grupos[col] = []);
+    (async () => {
+      // No necesitamos cargar todo el stock aquí, solo necesitamos los detalles del pedido
+      // El mapeo de colecciones y productos ya está en `productosPedidos`
+      const grupos = {};
+      coleccionesStock.forEach((col) => (grupos[col] = [])); // 2. Clasificar los productos pedidos por su colección
 
-      // 2. Clasificar los productos pedidos por su colección
-      articulosKeys.forEach(key => {
-        const detalle = productosPedidos[key];
-        // El key es Coleccion::Producto, pero el detalle ya tiene coleccion y producto
-        if (detalle && detalle.coleccion && detalle.producto) {
-          const cantidad = detalle.cantidad || 0;
-          if (cantidad > 0 && grupos.hasOwnProperty(detalle.coleccion)) {
-            grupos[detalle.coleccion].push({
-              nombre: detalle.producto,
-              cantidad: cantidad 
-            });
-          }
-        }
-      });
+      articulosKeys.forEach((key) => {
+        const detalle = productosPedidos[key]; // El key es Coleccion::Producto, pero el detalle ya tiene coleccion y producto
+        if (detalle && detalle.coleccion && detalle.producto) {
+          const cantidad = detalle.cantidad || 0;
+          if (cantidad > 0 && grupos.hasOwnProperty(detalle.coleccion)) {
+            grupos[detalle.coleccion].push({
+              nombre: detalle.producto,
+              cantidad: cantidad,
+            });
+          }
+        }
+      });
 
-      function buildGrupo(nombreColeccion, items) {
-        if (!items.length) return;
-        
-        items.sort((a, b) => a.nombre.localeCompare(b.nombre));
+      function buildGrupo(nombreColeccion, items) {
+        if (!items.length) return;
+        items.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-        const titulo = nombresColecciones[nombreColeccion] || nombreColeccion;
-        const groupDiv = document.createElement("div");
-        groupDiv.style.textAlign = "center";
-        const h3 = document.createElement("h3");
-        h3.textContent = titulo;
-        h3.style.backgroundColor = "#ddd";
-        h3.style.padding = "4px";
-        groupDiv.appendChild(h3);
+        const titulo = nombresColecciones[nombreColeccion] || nombreColeccion;
+        const groupDiv = document.createElement("div");
+        groupDiv.style.textAlign = "center";
+        const h3 = document.createElement("h3");
+        h3.textContent = titulo;
+        h3.style.backgroundColor = "#ddd";
+        h3.style.padding = "4px";
+        groupDiv.appendChild(h3);
 
-        items.forEach((item) => {
-          const itemDiv = document.createElement("div");
-          itemDiv.style.padding = "6px 0";
-          itemDiv.style.fontSize = "18px";
-          itemDiv.textContent = `${item.nombre} (${item.cantidad})`;
-          groupDiv.appendChild(itemDiv);
-        });
+        items.forEach((item) => {
+          const itemDiv = document.createElement("div");
+          itemDiv.style.padding = "6px 0";
+          itemDiv.style.fontSize = "18px";
+          itemDiv.textContent = `${item.nombre} (${item.cantidad})`;
+          groupDiv.appendChild(itemDiv);
+        });
 
-        detallesContainer.appendChild(groupDiv);
-      }
+        detallesContainer.appendChild(groupDiv);
+      } // Mostrar todos los grupos de stock
 
-      // Mostrar todos los grupos de stock
-      coleccionesStock.forEach(col => buildGrupo(col, grupos[col]));
-      
-      // --- Botones de acción ---
-      const botonesDiv = document.createElement("div");
-      botonesDiv.style.display = "flex";
-      botonesDiv.style.justifyContent = "space-around";
-      botonesDiv.style.gap = "12px";
-      botonesDiv.style.marginTop = "12px";
+      coleccionesStock.forEach((col) => buildGrupo(col, grupos[col])); // --- Botones de acción ---
+      const botonesDiv = document.createElement("div");
+      botonesDiv.style.display = "flex";
+      botonesDiv.style.justifyContent = "space-around";
+      botonesDiv.style.gap = "12px";
+      botonesDiv.style.marginTop = "12px";
 
-      const btnBorrar = document.createElement("button");
-      btnBorrar.textContent = "❌ Borrar";
-      btnBorrar.style.backgroundColor = "red";
-      btnBorrar.style.color = "white";
-      btnBorrar.style.padding = "8px 12px";
-      btnBorrar.style.border = "none";
-      btnBorrar.style.borderRadius = "4px";
-      btnBorrar.onclick = () =>
-        borrarPedidoYActualizarStock(data, pedidoDoc.id);
-      botonesDiv.appendChild(btnBorrar);
+      const btnBorrar = document.createElement("button");
+      btnBorrar.textContent = "❌ Borrar";
+      btnBorrar.style.backgroundColor = "red";
+      btnBorrar.style.color = "white";
+      btnBorrar.style.padding = "8px 12px";
+      btnBorrar.style.border = "none";
+      btnBorrar.style.borderRadius = "4px";
+      btnBorrar.onclick = () =>
+        borrarPedidoYActualizarStock(data, pedidoDoc.id);
+      botonesDiv.appendChild(btnBorrar);
 
-      const btnEntregado = document.createElement("button");
-      btnEntregado.textContent = "✅ Entregado";
-      btnEntregado.style.backgroundColor = "green";
-      btnEntregado.style.color = "white";
-      btnEntregado.style.padding = "8px 12px";
-      btnEntregado.style.border = "none";
-      btnEntregado.style.borderRadius = "4px";
-      btnEntregado.onclick = () => borrarPedidoSinStock(pedidoDoc.id);
-      botonesDiv.appendChild(btnEntregado);
+      const btnEntregado = document.createElement("button");
+      btnEntregado.textContent = "✅ Entregado";
+      btnEntregado.style.backgroundColor = "green";
+      btnEntregado.style.color = "white";
+      btnEntregado.style.padding = "8px 12px";
+      btnEntregado.style.border = "none";
+      btnEntregado.style.borderRadius = "4px";
+      btnEntregado.onclick = () => borrarPedidoSinStock(pedidoDoc.id);
+      botonesDiv.appendChild(btnEntregado);
 
-      const btnEditar = document.createElement("button");
-      btnEditar.textContent = "✏️ Editar";
-      btnEditar.style.backgroundColor = "orange";
-      btnEditar.style.color = "white";
-      btnEditar.style.padding = "8px 12px";
-      btnEditar.style.border = "none";
-      btnEditar.style.borderRadius = "4px";
-      btnEditar.onclick = () => {
-        window.location.href = `modificacion.html?id=${pedidoDoc.id}`;
-      };
-      botonesDiv.appendChild(btnEditar);
+      const btnEditar = document.createElement("button");
+      btnEditar.textContent = "✏️ Editar";
+      btnEditar.style.backgroundColor = "orange";
+      btnEditar.style.color = "white";
+      btnEditar.style.padding = "8px 12px";
+      btnEditar.style.border = "none";
+      btnEditar.style.borderRadius = "4px";
+      btnEditar.onclick = () => {
+        window.location.href = `modificacion.html?id=${pedidoDoc.id}`;
+      };
+      botonesDiv.appendChild(btnEditar);
 
-      const btnPDF = document.createElement("button");
-      btnPDF.textContent = "📄 PDF";
-      btnPDF.style.backgroundColor = "blue";
-      btnPDF.style.color = "white";
-      btnPDF.style.padding = "8px 12px";
-      btnPDF.style.border = "none";
-      btnPDF.style.borderRadius = "4px";
-      btnPDF.onclick = () => window.generarPDF(pedidoDoc.id);
-      botonesDiv.appendChild(btnPDF);
+      const btnPDF = document.createElement("button");
+      btnPDF.textContent = "📄 PDF";
+      btnPDF.style.backgroundColor = "blue";
+      btnPDF.style.color = "white";
+      btnPDF.style.padding = "8px 12px";
+      btnPDF.style.border = "none";
+      btnPDF.style.borderRadius = "4px";
+      btnPDF.onclick = () => window.generarPDF(pedidoDoc.id);
+      botonesDiv.appendChild(btnPDF);
 
-      detallesContainer.appendChild(botonesDiv);
-    })();
+      detallesContainer.appendChild(botonesDiv);
+    })();
 
-    container.appendChild(detallesContainer);
-  } else {
-    const productosPedidos = data.productos || {};
-    
-    let totalUnidades = 0;
-    Object.values(productosPedidos).forEach((detalle) => {
-      totalUnidades += detalle.cantidad || 0;
-    });
+    container.appendChild(detallesContainer);
+  } else {
+    const productosPedidos = data.productos || {};
+    let totalUnidades = 0;
+    Object.values(productosPedidos).forEach((detalle) => {
+      totalUnidades += detalle.cantidad || 0;
+    });
 
-    const resumen = document.createElement("div");
-    resumen.style.textAlign = "center";
-    resumen.style.fontSize = "16px";
-    resumen.style.marginTop = "6px";
+    const resumen = document.createElement("div");
+    resumen.style.textAlign = "center";
+    resumen.style.fontSize = "16px";
+    resumen.style.marginTop = "6px";
 
-    resumen.textContent = `${totalUnidades} artículos`;
-    container.appendChild(resumen);
-  }
+    resumen.textContent = `${totalUnidades} artículos`;
+    container.appendChild(resumen);
+  }
 
-  return container;
+  return container;
 }
 
 // -------------------------------------------------------------------
@@ -761,269 +1067,240 @@ function crearElementoPedido(pedidoDoc, data) {
 // -------------------------------------------------------------------
 
 async function generarPDFAcumulado(pedidosFiltradosDocs) {
-  if (!pedidosFiltradosDocs || pedidosFiltradosDocs.length === 0) {
-    alert("No hay pedidos para generar el resumen.");
-    return;
-  }
+  if (!pedidosFiltradosDocs || pedidosFiltradosDocs.length === 0) {
+    alert("No hay pedidos para generar el resumen.");
+    return;
+  }
 
-  // 1. Acumular las cantidades de productos de todos los pedidos filtrados
-  const articulosAcumulados = {}; 
-  // Estructura: articulosAcumulados['Coleccion::Producto'] = { coleccion: '...', producto: '...', cantidad: X }
+  // 1. Acumular cantidades y nombres de clientes
+  const articulosAcumulados = {};
 
-  pedidosFiltradosDocs.forEach(doc => {
-    const data = doc.data();
-    const productosPedidos = data.productos || {};
-    
-    Object.values(productosPedidos).forEach(detalle => {
-      if (detalle && detalle.coleccion && detalle.producto) {
-        const key = `${detalle.coleccion}::${detalle.producto}`;
-        const cantidad = detalle.cantidad || 0;
+  pedidosFiltradosDocs.forEach((doc) => {
+    const data = doc.data();
+    const nombreCliente = data.Nombre || "Sin nombre";
+    const productosPedidos = data.productos || {};
 
-        if (cantidad > 0) {
-          if (!articulosAcumulados[key]) {
-            articulosAcumulados[key] = {
-              coleccion: detalle.coleccion,
-              producto: detalle.producto,
-              cantidad: 0,
-            };
-          }
-          articulosAcumulados[key].cantidad += cantidad;
-        }
-      }
-    });
-  });
+    Object.values(productosPedidos).forEach((detalle) => {
+      if (detalle && detalle.coleccion && detalle.producto) {
+        const key = `${detalle.coleccion}::${detalle.producto}`;
+        const cantidad = detalle.cantidad || 0;
 
-  if (Object.keys(articulosAcumulados).length === 0) {
-    alert("No se encontraron artículos con las cantidades en los pedidos filtrados.");
-    return;
-  }
+        if (cantidad > 0) {
+          if (!articulosAcumulados[key]) {
+            articulosAcumulados[key] = {
+              coleccion: detalle.coleccion,
+              producto: detalle.producto,
+              cantidad: 0,
+              clientes: [], // Guardaremos los nombres de los clientes aquí
+            };
+          }
+          articulosAcumulados[key].cantidad += cantidad;
+          // Guardamos el cliente y cuánto pidió de este producto específico
+          articulosAcumulados[key].clientes.push(
+            `${nombreCliente} (${cantidad})`
+          );
+        }
+      }
+    });
+  });
 
-  // 2. Clasificar los artículos acumulados por grupo de stock
-  const gruposAcumulados = {};
-  coleccionesStock.forEach(col => gruposAcumulados[col] = []);
+  if (Object.keys(articulosAcumulados).length === 0) {
+    alert(
+      "No se encontraron artículos con las cantidades en los pedidos filtrados."
+    );
+    return;
+  }
 
-  Object.values(articulosAcumulados).forEach(item => {
-    if (gruposAcumulados.hasOwnProperty(item.coleccion)) {
-      gruposAcumulados[item.coleccion].push(item);
-    }
-  });
+  // 2. Clasificar los artículos acumulados por grupo de stock
+  const gruposAcumulados = {};
+  coleccionesStock.forEach((col) => (gruposAcumulados[col] = []));
 
-  // 3. Generar el PDF
-  const { jsPDF } = window.jspdf;
-  const docPDF = new jsPDF({ format: "a4", unit: "mm" });
+  Object.values(articulosAcumulados).forEach((item) => {
+    if (gruposAcumulados.hasOwnProperty(item.coleccion)) {
+      gruposAcumulados[item.coleccion].push(item);
+    }
+  });
 
-  const loadImage = (src) =>
-    new Promise((resolve, reject) => {
-      const img = new Image();
-      img.src = src;
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-    });
-  const logoImg = await loadImage("images/Grido_logo.png");
-  
-  // Usamos una nueva función para dibujar el resumen
-  await drawResumenPDF(docPDF, logoImg, gruposAcumulados, pedidosFiltradosDocs.length);
+  // 3. Generar el PDF
+  const { jsPDF } = window.jspdf;
+  const docPDF = new jsPDF({ format: "a4", unit: "mm" });
 
-  // Generar nombre de archivo con filtro de fecha si aplica
-  const nombreArchivo = filtroFecha ? `Resumen_Pedidos_${filtroFecha}.pdf` : `Resumen_Pedidos_Acumulado.pdf`;
-  docPDF.save(nombreArchivo);
+  // 🔹 Cargar IDs de productos (FALTABA ESTO)
+  const idsSnap = await getDoc(doc(db, "idProductos", "idProducto"));
+  const idsData = idsSnap.exists() ? idsSnap.data() : {};
 
-  alert("Resumen Acumulado de Artículos generado.");
+  const loadImage = (src) =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+    });
+
+  try {
+    const logoImg = await loadImage("images/Grido_logo.png");
+
+    await drawResumenPDF(
+      docPDF,
+      logoImg,
+      gruposAcumulados,
+      pedidosFiltradosDocs.length,
+      idsData
+    );
+
+    const nombreArchivo = filtroFecha
+      ? `Resumen_Pedidos_${filtroFecha}.pdf`
+      : `Resumen_Pedidos_Acumulado.pdf`;
+
+    docPDF.save(nombreArchivo);
+    alert("Resumen Acumulado de Artículos generado.");
+  } catch (error) {
+    console.error("Error generando PDF:", error);
+    alert("Error al cargar el logo o generar el PDF.");
+  }
 }
 
 // -------------------------------------------------------------------
-// ## NUEVA FUNCIÓN: Dibujar el PDF de Resumen
+// ## FUNCIÓN: Dibujar el PDF de Resumen
 // -------------------------------------------------------------------
+async function drawResumenPDF(
+  docPDF,
+  logoImg,
+  gruposAcumulados,
+  numPedidos,
+  idsData
+) {
+  const marginLeft = 10;
+  const pageWidth = docPDF.internal.pageSize.getWidth();
+  let y = 10;
+  const maxY = 275;
 
-async function drawResumenPDF(docPDF, logoImg, gruposAcumulados, numPedidos) {
-  const marginLeft = 10;
-  const pageWidth = docPDF.internal.pageSize.getWidth();
-  let y = 10;
-  const maxY = 280;
+  // --- ENCABEZADO ---
+  docPDF.addImage(logoImg, "PNG", marginLeft, y, 30, 12);
+  docPDF.setFont("helvetica", "bold");
+  docPDF.setFontSize(16);
+  docPDF.text("RESUMEN DE PRODUCTOS POR CLIENTE", pageWidth - 10, y + 8, {
+    align: "right",
+  });
+  y += 20;
 
-  // --- ENCABEZADO ---
-  docPDF.addImage(logoImg, "PNG", marginLeft, y, 30, 12);
-  docPDF.setFont("helvetica", "bold");
-  docPDF.setFontSize(16);
-  docPDF.text("RESUMEN ACUMULADO DE ARTÍCULOS", pageWidth - 10, y + 8, { align: "right" });
-  y += 20;
+  docPDF.setFont("helvetica", "normal");
+  docPDF.setFontSize(10);
+  const filtrosAplicados = [];
+  if (filtroFecha) filtrosAplicados.push(`Fecha: ${filtroFecha}`);
+  if (filtroNombre) filtrosAplicados.push(`Cliente: ${filtroNombre}`);
+  if (filtroCategoria !== "Todos")
+    filtrosAplicados.push(`Cat: ${filtroCategoria}`);
+  if (filtroLocalidad) filtrosAplicados.push(`Loc: ${filtroLocalidad}`);
 
-  docPDF.setFont("helvetica", "normal");
-  docPDF.setFontSize(10);
-  const filtrosAplicados = [];
-  if (filtroFecha) filtrosAplicados.push(`Fecha: ${filtroFecha}`);
-  if (filtroNombre) filtrosAplicados.push(`Cliente/Nombre: ${filtroNombre}`);
-  if (filtroCategoria !== "Todos") filtrosAplicados.push(`Categoría: ${filtroCategoria}`);
-  if (filtroLocalidad) filtrosAplicados.push(`Localidad: ${filtroLocalidad}`);
-  
-  docPDF.text(`Pedidos analizados: ${numPedidos}`, marginLeft, y); y += 5;
-  docPDF.text(`Filtros: ${filtrosAplicados.length > 0 ? filtrosAplicados.join(" | ") : "Ninguno"}`, marginLeft, y);
-  y += 8;
+  docPDF.text(`Pedidos analizados: ${numPedidos}`, marginLeft, y);
+  y += 5;
+  docPDF.text(
+    `Filtros: ${
+      filtrosAplicados.length > 0 ? filtrosAplicados.join(" | ") : "Ninguno"
+    }`,
+    marginLeft,
+    y
+  );
+  y += 8;
 
-  // Línea separadora
-  docPDF.setLineWidth(0.5);
-  docPDF.line(marginLeft, y, pageWidth - marginLeft, y);
-  y += 5;
-  
-  docPDF.setFont("helvetica", "bold");
-  docPDF.setFontSize(12);
-  docPDF.text("CANTIDAD", 13, y);
-  docPDF.text("PRODUCTO", 40, y);
-  docPDF.text("COLECCIÓN", pageWidth - 40, y);
-  y += 4;
-  docPDF.line(marginLeft, y, pageWidth - marginLeft, y);
-  y += 5;
+  // Encabezados de tabla
+  docPDF.setLineWidth(0.4);
+  docPDF.line(marginLeft, y, pageWidth - marginLeft, y);
+  y += 5;
+  docPDF.setFont("helvetica", "bold");
+  docPDF.text("CANT.", 13, y);
+  docPDF.text("PRODUCTO / CLIENTES QUE PIDIERON", 40, y);
+  docPDF.text("COLECCIÓN", pageWidth - 40, y);
+  y += 4;
+  docPDF.line(marginLeft, y, pageWidth - marginLeft, y);
+  y += 6;
 
-  // --- DETALLE DE ARTÍCULOS ACUMULADOS ---
-  const rowSpacing = 5;
-  let totalGeneralUnidades = 0;
+  let totalGeneralUnidades = 0;
 
-  // Iterar sobre las colecciones para mantener el orden de agrupamiento
-  coleccionesStock.forEach(col => {
-    const items = gruposAcumulados[col];
-    if (!items || items.length === 0) return;
+  // Iterar sobre colecciones
+  coleccionesStock.forEach((col) => {
+    const items = gruposAcumulados[col];
+    if (!items || items.length === 0) return;
 
-    // Ordenar alfabéticamente dentro de la colección
-    items.sort((a, b) => a.producto.localeCompare(b.producto));
+    items.sort((a, b) => a.producto.localeCompare(b.producto));
 
-    // Título de la Colección/Grupo
-    docPDF.setFont("helvetica", "bold");
-    docPDF.setFontSize(10);
-    docPDF.text(nombresColecciones[col] || col, marginLeft, y);
-    y += rowSpacing;
+    // Título de la Colección
+    if (y > maxY - 10) {
+      docPDF.addPage();
+      y = 20;
+    }
+    docPDF.setFont("helvetica", "bold");
+    docPDF.setFillColor(245, 245, 245);
+    docPDF.rect(marginLeft, y - 4, pageWidth - marginLeft * 2, 6, "F");
+    docPDF.text(nombresColecciones[col] || col, marginLeft + 2, y);
+    y += 8;
 
-    docPDF.setFont("helvetica", "normal");
-    docPDF.setFontSize(10);
-    
-    items.forEach(item => {
-      totalGeneralUnidades += item.cantidad;
+    items.forEach((item) => {
+      totalGeneralUnidades += item.cantidad;
 
-      docPDF.text(item.cantidad.toString(), 13, y);
-      docPDF.text(item.producto.charAt(0).toUpperCase() + item.producto.slice(1), 40, y);
-      // No repetir la colección aquí para ahorrar espacio, ya está como encabezado
+      // Verificar espacio antes del producto
+      if (y > maxY - 10) {
+        docPDF.addPage();
+        y = 20;
+      }
 
-      y += rowSpacing;
-      // Control de página
-      if (y > maxY) {
-        docPDF.addPage();
-        y = 20; // Reiniciar Y
-        docPDF.setFont("helvetica", "bold");
-        docPDF.setFontSize(12);
-        docPDF.text("CANTIDAD", 13, y);
-        docPDF.text("PRODUCTO", 40, y);
-        docPDF.text("COLECCIÓN", pageWidth - 40, y);
-        y += 4;
-        docPDF.line(marginLeft, y, pageWidth - marginLeft, y);
-        y += 5;
-        // Repetir el título de grupo en nueva página (opcional)
-        docPDF.setFont("helvetica", "bold");
-        docPDF.setFontSize(10);
-        docPDF.text(nombresColecciones[col] || col, marginLeft, y);
-        y += rowSpacing;
-        docPDF.setFont("helvetica", "normal");
-        docPDF.setFontSize(10);
-      }
-    });
-    y += 2;
-    docPDF.line(marginLeft, y, pageWidth - marginLeft, y);
-    y += 5;
-  });
+      // Dibujar Producto y Cantidad Total
+      docPDF.setFont("helvetica", "bold");
+      docPDF.setFontSize(10);
+      docPDF.text(item.cantidad.toString(), 13, y);
 
-  // --- TOTAL FINAL ---
-  y += 5;
-  docPDF.setFont("helvetica", "bold");
-  docPDF.setFontSize(14);
-  docPDF.text(`TOTAL GENERAL DE UNIDADES: ${totalGeneralUnidades}`, pageWidth - 10, y, { align: "right" });
+      const idProducto = idsData[item.producto] || "SIN-ID";
+
+      // ID normal
+      docPDF.setFont("helvetica", "normal");
+      docPDF.text(` - ${idProducto} - `, 18, y);
+
+      // Producto en negrita
+      docPDF.setFont("helvetica", "bold");
+      docPDF.text(
+        item.producto.toUpperCase(),
+        18 + docPDF.getTextWidth(` - ${idProducto} - `),
+        y
+      );
+
+      y += 5;
+
+      // --- CAMBIO AQUÍ: Lista de Clientes en Horizontal ---
+      docPDF.setFont("helvetica", "italic");
+      docPDF.setFontSize(9);
+      docPDF.setTextColor(70, 70, 70);
+
+      // Unimos los clientes con un guion y usamos splitTextToSize para que no se salgan de la hoja
+      const listaClientesHorizontal = item.clientes.join(" - ");
+      const lineasTexto = docPDF.splitTextToSize(
+        listaClientesHorizontal,
+        pageWidth - 55
+      );
+
+      docPDF.text(lineasTexto, 45, y);
+
+      // Calculamos cuánto espacio ocupó el bloque de texto horizontal para ajustar la 'y'
+      y += lineasTexto.length * 4.5 + 2;
+
+      docPDF.setTextColor(0, 0, 0); // Reset a negro
+      y += 1; // Espacio entre bloques de productos
+    });
+    y += 2;
+  });
+
+  // --- TOTAL FINAL ---
+  y += 5;
+  if (y > maxY) {
+    docPDF.addPage();
+    y = 20;
+  }
+  docPDF.setFont("helvetica", "bold");
+  docPDF.setFontSize(13);
+  docPDF.text(
+    `TOTAL GENERAL DE UNIDADES: ${totalGeneralUnidades}`,
+    pageWidth - 10,
+    y,
+    { align: "right" }
+  );
 }
-
-// -------------------------------------------------------------------
-// ## Renderizar Pedidos - Lógica de Filtrado Actualizada
-// -------------------------------------------------------------------
-
-function renderPedidos() {
-  const pedidosRef = collection(db, "Pedidos");
-  const q = query(pedidosRef, orderBy("fechaRegistro", "desc"));
-
-  onSnapshot(q, (snapshot) => {
-    pedidosContainer.innerHTML = "";
-
-    const normNombre = normalizar(filtroNombre);
-    const normLocalidad = normalizar(filtroLocalidad);
-    const filtroFechaValida = filtroFecha.trim();
-    const filtroCategoriaValida = filtroCategoria;
-
-    let pedidos = snapshot.docs.filter((doc) => {
-      const data = doc.data();
-      
-      // 1. Filtrar por Nombre
-      const nombrePedido = data.Nombre || "";
-      const nombreOk = normNombre === "" || normalizar(nombrePedido).includes(normNombre);
-      
-      // 2. Filtrar por Fecha
-      const fechaPedido = data.fechaEntrega || ""; // Asumiendo que 'fechaEntrega' tiene el formato 'YYYY-MM-DD'
-      const fechaOk = filtroFechaValida === "" || fechaPedido === filtroFechaValida;
-      
-      // 3. Filtrar por Categoría
-      const categoriaPedido = data.categoria || "";
-      const categoriaOk =
-        filtroCategoriaValida === "Todos" ||
-        categoriaPedido === filtroCategoriaValida;
-        
-      // 4. Filtrar por Localidad
-      const localidadPedido = data.Localidad || "";
-      const localidadOk = normLocalidad === "" || normalizar(localidadPedido).includes(normLocalidad);
-
-      return nombreOk && fechaOk && categoriaOk && localidadOk;
-    });
-
-    let pedidosFiltradosFinales = [...pedidos]; // Copia de los pedidos que pasaron los filtros
-
-    if (pedidoAbiertoId) {
-      const abiertoExiste = snapshot.docs.some(
-        (doc) => doc.id === pedidoAbiertoId
-      );
-      if (abiertoExiste) {
-          // Si hay un pedido abierto, solo muéstralo si pasa los filtros.
-          const pedidoAbierto = pedidos.find(d => d.id === pedidoAbiertoId);
-          pedidos = pedidoAbierto ? [pedidoAbierto] : [];
-      } else {
-          pedidoAbiertoId = null;
-      }
-    }
-
-    if (!pedidosFiltradosFinales.length) {
-      pedidosContainer.textContent = "No hay pedidos que coincidan con los filtros.";
-      pedidosContainer.style.textAlign = "center";
-      pedidosContainer.style.fontSize = "18px";
-      return;
-    }
-
-    // Renderizar los pedidos (teniendo en cuenta el pedido abierto)
-    pedidos.forEach((pedidoDoc) => {
-      const data = pedidoDoc.data();
-      const elemento = crearElementoPedido(pedidoDoc, data);
-      pedidosContainer.appendChild(elemento);
-    });
-    
-    // --- BOTÓN DE RESUMEN ACUMULADO AL FINAL DEL LISTADO ---
-    const resumenBtnContainer = document.createElement("div");
-    resumenBtnContainer.style.marginTop = "20px";
-    resumenBtnContainer.style.textAlign = "center";
-    
-    const btnResumen = document.createElement("button");
-    btnResumen.textContent = `📝 Generar Resumen Acumulado (${pedidosFiltradosFinales.length} pedidos)`;
-    btnResumen.style.backgroundColor = "#ff9800"; // Naranja para distinguir
-    btnResumen.style.color = "white";
-    btnResumen.style.padding = "10px 15px";
-    btnResumen.style.border = "none";
-    btnResumen.style.borderRadius = "4px";
-    btnResumen.style.cursor = "pointer";
-    btnResumen.onclick = () => generarPDFAcumulado(pedidosFiltradosFinales);
-    
-    resumenBtnContainer.appendChild(btnResumen);
-    pedidosContainer.appendChild(resumenBtnContainer);
-
-  });
-}
-
-renderPedidos();

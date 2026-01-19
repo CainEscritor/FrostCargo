@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Listado de Clientes</title>
+    <link rel="icon" type="image/png" href="images/favicon.png" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 50px 10px;
+        padding-bottom: 150px;
+      }
+      .panel {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        max-width: 1100px;
+        width: 100%;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 25px;
+        overflow-x: auto;
+      }
+      h1 {
+        text-align: center;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      table th,
+      table td {
+        padding: 8px;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+      }
+      table th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+      }
+
+      /* Estilos para los filtros */
+      .fila-filtros input {
+        width: 100%;
+        padding: 6px;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      .fila-filtros td {
+        background-color: #fafafa;
+      }
+
+      #refrescar-btn {
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: none;
+        background: #2196f3;
+        color: white;
+        cursor: pointer;
+        margin-left: 10px;
+      }
+      .footer-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background-color: #f8f8f8;
+        border-top: 1px solid #ddd;
+        padding: 10px 0;
+        display: flex;
+        justify-content: space-around;
+        z-index: 1000;
+      }
+
+      .btn-volver-container {
+        margin-top: 20px;
+        text-align: center;
+      }
+      .btn-volver {
+        background-color: #4caf50;
+        color: white;
+        padding: 10px 20px;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          padding: 20px;
+        "
+      >
+        <h1>Base de Datos de Clientes</h1>
+        <button id="refrescar-btn">Refrescar</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="contenedor-clientes" class="panel">
+        <table id="tabla-clientes">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Local</th>
+              <th>CUIT</th>
+              <th>Dirección</th>
+              <th>Localidad</th>
+              <th>Teléfono</th>
+            </tr>
+            <tr class="fila-filtros">
+              <td>
+                <input
+                  type="text"
+                  id="filtro-nombre"
+                  placeholder="Filtrar..."
+                />
+              </td>
+              <td>
+                <input type="text" id="filtro-local" placeholder="Filtrar..." />
+              </td>
+              <td>
+                <input type="text" id="filtro-cuit" placeholder="Filtrar..." />
+              </td>
+              <td>
+                <input
+                  type="text"
+                  id="filtro-direccion"
+                  placeholder="Filtrar..."
+                />
+              </td>
+              <td>
+                <input
+                  type="text"
+                  id="filtro-localidad"
+                  placeholder="Filtrar..."
+                />
+              </td>
+              <td>
+                <input
+                  type="text"
+                  id="filtro-telefono"
+                  placeholder="Filtrar..."
+                />
+              </td>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <div class="btn-volver-container">
+          <a href="nuevoCliente.html" class="btn-volver"
+            >Volver a Gestión de Clientes</a
+          >
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer-nav">
+      <a href="index.html" class="btn-rojo">Volver al menú principal</a>
+      <a href="stock.html" class="btn-rojo">Ver Stock</a>
+    </footer>
+
+    <script type="module" src="clientes.js"></script>
+  </body>
+</html>

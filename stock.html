@@ -6,6 +6,7 @@
     <title>Stock</title>
     <link rel="icon" type="image/png" href="images/favicon.png" />
     <link rel="stylesheet" href="style.css" />
+
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -36,7 +37,8 @@
         margin-bottom: 25px;
       }
 
-      h1, h2 {
+      h1,
+      h2 {
         margin-bottom: 15px;
         text-align: center;
       }
@@ -47,20 +49,29 @@
         margin-bottom: 15px;
       }
 
-      table th, table td {
+      table th,
+      table td {
         padding: 8px 0;
         border-bottom: 1px solid #eee;
       }
 
-      table th:nth-child(1), table td:nth-child(1) {
-        text-align: left;
-        width: 70%;
+      table th:nth-child(1),
+      table td:nth-child(1) {
+        width: 15%;
         padding-left: 10px;
+        padding-right: 25px;
+        font-weight: normal;
       }
-
-      table th:nth-child(2), table td:nth-child(2) {
-        text-align: right;
+      table th:nth-child(2),
+      table td:nth-child(2) {
+        width: 55%;
+        text-align: left;
+        font-weight: bold;
+      }
+      table th:nth-child(3),
+      table td:nth-child(3) {
         width: 30%;
+        text-align: right;
         padding-right: 10px;
         font-weight: bold;
       }
@@ -104,11 +115,83 @@
         color: white;
         cursor: pointer;
       }
+
+      /* --- ESTILOS MODAL --- */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 2000;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .modal-content {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        text-align: center;
+        width: 90%;
+        max-width: 450px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      }
+
+      .modal-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      .btn-modal {
+        padding: 12px;
+        border-radius: 8px;
+        border: none;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: transform 0.1s;
+      }
+
+      .btn-modal:active {
+        transform: scale(0.98);
+      }
+      .btn-primary {
+        background-color: #28a745;
+        color: white;
+      }
+      .btn-secondary {
+        background-color: #dc3545;
+        color: white;
+      }
+      .btn-excel {
+        background-color: #1d6f42;
+        color: white;
+      }
+      .btn-pdf {
+        background-color: #e63946;
+        color: white;
+      }
+      .hidden {
+        display: none;
+      }
     </style>
   </head>
+
   <body>
     <header class="header">
-      <div class="menu" style="display:flex; align-items:center; justify-content:center; gap:10px;">
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+        "
+      >
         <h1>Stock - Frost Cargo</h1>
         <button id="refrescar-btn">Refrescar</button>
       </div>
@@ -118,6 +201,13 @@
       <div class="botones-abajo">
         <a href="modificarStock.html" class="btn-rojo">Modificar Stock</a>
         <a href="agregarStock.html" class="btn-rojo">Cargar Productos</a>
+        <button
+          id="listado-btn"
+          class="btn-rojo"
+          style="border: none; font-size: inherit; font-family: inherit"
+        >
+          Listado / Exportar
+        </button>
       </div>
 
       <div id="contenedor-paneles"></div>
@@ -129,6 +219,50 @@
       <a href="pedidos.html" class="btn-rojo">Pedidos</a>
     </footer>
 
+    <div id="modal-export" class="modal-overlay">
+      <div class="modal-content">
+        <div id="step-1">
+          <h3>¿Incluir cantidades?</h3>
+          <div class="modal-buttons">
+            <button id="btn-con-cant" class="btn-modal btn-primary">
+              SÍ, incluir stock
+            </button>
+            <button id="btn-sin-cant" class="btn-modal btn-secondary">
+              NO, solo listado
+            </button>
+          </div>
+        </div>
+
+        <div id="step-2" class="hidden">
+          <h3>Selecciona el Formato</h3>
+          <div class="modal-buttons">
+            <button id="btn-formato-pdf" class="btn-modal btn-pdf">
+              Descargar PDF
+            </button>
+            <button id="btn-formato-excel" class="btn-modal btn-excel">
+              Descargar Excel (.xlsx)
+            </button>
+          </div>
+        </div>
+
+        <button
+          id="btn-cerrar-modal"
+          style="
+            margin-top: 20px;
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            text-decoration: underline;
+          "
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script type="module" src="stock.js"></script>
   </body>
 </html>

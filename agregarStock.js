@@ -1,17 +1,13 @@
-// agregarStock.js
 import { db } from "./firebase.js";
 import {
   doc,
   getDoc,
-  // updateDoc,
-  setDoc
+  writeBatch, // 🔹 Importante para el guardado atómico
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 const contenedor = document.getElementById("contenedor-paneles");
-const refrescarBtn = document.getElementById("refrescar-btn");
 const agregarBtn = document.getElementById("agregar-stock");
 
-// Lista de colecciones (igual que en stock.js)
 const colecciones = [
   "StockCarnicos",
   "StockFrigorBalde",
@@ -26,10 +22,9 @@ const colecciones = [
   "StockMexcal",
   "StockOrale",
   "StockPripan",
-  "StockSwift"
+  "StockSwift",
 ];
 
-// Mapeo a nombres amigables
 const nombresColecciones = {
   StockCarnicos: "Cárnicos",
   StockFrigorBalde: "Frigor Baldes",
@@ -44,161 +39,143 @@ const nombresColecciones = {
   StockMexcal: "Mexcal",
   StockOrale: "Orale",
   StockPripan: "Pripan",
-  StockSwift: "Swift"
+  StockSwift: "Swift",
 };
 
-// Estado guardado en memoria: { colección: { prod: cantidad, ... }, ... }
-const estadoActual = {};
+let estadoActual = {}; // Guardaremos el stock base para sumar sobre él
 
-// Crear panel dinámico (sólo el tbody con data-collection)
-function crearPanelParaAgregar(titulo, idTabla, nombreColeccion) {
+/* ===================== RENDERIZADO ===================== */
+
+function crearPanel(titulo, col) {
   const panel = document.createElement("div");
   panel.className = "panel";
-
-  const h2 = document.createElement("h2");
-  h2.textContent = titulo;
-  panel.appendChild(h2);
-
-  const table = document.createElement("table");
-  table.id = `tabla-${idTabla}`;
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th>Producto</th>
-        <th style="text-align:right">Cantidad a Agregar</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
+  panel.innerHTML = `
+    <h2>${titulo}</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Producto</th>
+          <th>Cantidad a agregar</th>
+        </tr>
+      </thead>
+      <tbody data-col="${col}"></tbody>
+    </table>
   `;
-  panel.appendChild(table);
-
-  const tbody = table.querySelector("tbody");
-  tbody.dataset.collection = nombreColeccion;
-
   contenedor.appendChild(panel);
-  return tbody;
+  return panel.querySelector("tbody");
 }
 
-// Renderiza inputs (placeholder 0) para cada producto
-function renderizarAgregarInputs(tablaBody, data) {
-  tablaBody.innerHTML = "";
-  if (!data || Object.keys(data).length === 0) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="2" style="text-align:center; color:#666;">Sin datos</td>`;
-    tablaBody.appendChild(tr);
-    return;
-  }
+function renderizarTabla(tbody, data, idsData) {
+  tbody.innerHTML = "";
+  const productos = Object.keys(data).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" })
+  );
 
-  const productos = Object.keys(data).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  productos.forEach(prod => {
+  productos.forEach((prod) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
+      <td>${idsData[prod] || "---"}</td>
       <td>${prod}</td>
-      <td style="text-align:right">
-        <input type="number" min="0" placeholder="0" data-key="${prod}">
+      <td>
+        <input type="number" min="0" placeholder="0" data-prod="${prod}" />
       </td>
     `;
-    tablaBody.appendChild(tr);
+    tbody.appendChild(tr);
   });
 }
 
-// Cargar todos los stocks (doc id "Stock" por colección, como en stock.js)
-async function cargarAgregarTodos() {
+/* ===================== CARGA PARALELA (BLAZE-FRIENDLY) ===================== */
+
+async function cargarAgregarStock() {
   try {
+    contenedor.innerHTML =
+      "<p style='text-align:center;'>Cargando base de datos...</p>";
+
+    // Lanzamos todas las peticiones al mismo tiempo
+    const promesasStock = colecciones.map((col) =>
+      getDoc(doc(db, col, "Stock"))
+    );
+    const promesaIDs = getDoc(doc(db, "idProductos", "idProducto"));
+
+    const resultados = await Promise.all([...promesasStock, promesaIDs]);
+    const idsData = resultados[resultados.length - 1].exists()
+      ? resultados[resultados.length - 1].data()
+      : {};
+
     contenedor.innerHTML = "";
-    const tbodies = colecciones.map((col, idx) => {
-      const idTabla = `${col}-${idx}`;
-      const titulo = nombresColecciones[col] || col;
-      const tbody = crearPanelParaAgregar(titulo, idTabla, col);
-      return { col, tbody };
-    });
+    estadoActual = {}; // Limpiamos estado anterior
 
-    const promesas = tbodies.map(item => {
-      const referencia = doc(db, item.col, "Stock");
-      return getDoc(referencia)
-        .then(snap => ({ col: item.col, tbody: item.tbody, snap }))
-        .catch(err => ({ col: item.col, tbody: item.tbody, error: err }));
-    });
+    for (let i = 0; i < colecciones.length; i++) {
+      const col = colecciones[i];
+      const snap = resultados[i];
+      const data = snap.exists() ? snap.data() : {};
 
-    const resultados = await Promise.all(promesas);
+      estadoActual[col] = data; // Guardamos el stock actual en memoria
 
-    resultados.forEach(res => {
-      if (res.error) {
-        res.tbody.innerHTML = `<tr><td colspan="2" style="color:#c00; text-align:center;">Error al cargar</td></tr>`;
-        console.error("Error en colección", res.col, res.error);
-        return;
-      }
-      const data = res.snap.exists() ? res.snap.data() : {};
-      // guardamos estado actual (si no existe, lo dejamos vacío)
-      estadoActual[res.col] = { ...(data || {}) };
-      renderizarAgregarInputs(res.tbody, estadoActual[res.col]);
-    });
-
+      const tbody = crearPanel(nombresColecciones[col] || col, col);
+      renderizarTabla(tbody, data, idsData);
+    }
   } catch (e) {
     console.error(e);
-    alert("Error al cargar los stocks");
+    alert("Error al cargar datos. Comprueba tu conexión.");
   }
 }
 
-// Evento: agregar al stock (suma)
+/* ===================== GUARDADO ATÓMICO (BATCH) ===================== */
+
 agregarBtn.addEventListener("click", async () => {
   try {
     agregarBtn.disabled = true;
-    agregarBtn.textContent = "Agregando...";
+    agregarBtn.textContent = "Procesando ingreso...";
 
-    const operaciones = [];
+    const batch = writeBatch(db);
+    let hayCambios = false;
 
-    // por cada tbody tomar inputs y sumar al estadoActual
-    contenedor.querySelectorAll("tbody").forEach(tbody => {
-      const coleccion = tbody.dataset.collection;
-      if (!coleccion) return;
+    // Recorremos los TBODY de la interfaz
+    document.querySelectorAll("tbody").forEach((tbody) => {
+      const col = tbody.dataset.col;
+      const stockBase = { ...estadoActual[col] };
+      let colModificada = false;
 
-      // clonamos estado para modificar
-      const copia = { ...(estadoActual[coleccion] || {}) };
+      // Buscamos inputs con valor > 0
+      tbody.querySelectorAll("input").forEach((input) => {
+        const prod = input.dataset.prod;
+        const cantidadASumar = Number(input.value) || 0;
 
-      // sumar valores de inputs
-      tbody.querySelectorAll("input[data-key]").forEach(input => {
-        const k = input.dataset.key;
-        const agregar = Number(input.value) || 0;
-        if (agregar > 0) {
-          copia[k] = (Number(copia[k]) || 0) + agregar;
+        if (cantidadASumar > 0) {
+          stockBase[prod] = (stockBase[prod] || 0) + cantidadASumar;
+          colModificada = true;
+          hayCambios = true;
         }
       });
 
-      // si no hubo cambios (todo 0) no hacemos petición
-      const tieneCambios = Object.keys(copia).some(key => copia[key] !== (Number(estadoActual[coleccion]?.[key]) || 0));
-      if (!tieneCambios) return;
-
-      // guardamos la nueva versión localmente
-      estadoActual[coleccion] = copia;
-
-      // guardamos en Firestore con merge para no borrar otros campos
-      const ref = doc(db, coleccion, "Stock");
-      operaciones.push(setDoc(ref, copia, { merge: true }));
+      // Si hubo cambios en esta colección, la añadimos al Batch
+      if (colModificada) {
+        const docRef = doc(db, col, "Stock");
+        batch.set(docRef, stockBase);
+      }
     });
 
-    if (operaciones.length === 0) {
-      alert("No hay cantidades para agregar (todos los campos están en 0).");
+    if (!hayCambios) {
+      alert("No has ingresado ninguna cantidad.");
+      agregarBtn.disabled = false;
+      agregarBtn.textContent = "Cargar Productos";
       return;
     }
 
-    await Promise.all(operaciones);
+    // Ejecutamos todas las sumas en una sola transacción
+    await batch.commit();
 
-    alert("Stock agregado correctamente ✅");
-
-    // recargar para limpiar inputs y mostrar valores actualizados
-    await cargarAgregarTodos();
-
-  } catch (err) {
-    console.error(err);
-    alert("Error agregando stock ❌");
+    alert("¡Ingreso de mercadería registrado con éxito! ✅");
+    await cargarAgregarStock(); // Refrescar stock actual
+  } catch (error) {
+    console.error("Error en ingreso de stock:", error);
+    alert("Hubo un error al guardar los datos ❌");
   } finally {
     agregarBtn.disabled = false;
-    agregarBtn.textContent = "Agregar al Stock";
+    agregarBtn.textContent = "Cargar Productos";
   }
 });
 
-refrescarBtn.addEventListener("click", cargarAgregarTodos);
-
-// carga inicial
-cargarAgregarTodos();
+cargarAgregarStock();

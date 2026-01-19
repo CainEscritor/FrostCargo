@@ -1,22 +1,28 @@
 import { db } from "./firebase.js";
 import {
   doc,
-  updateDoc,
-  getDoc,
+  writeBatch,
   deleteField,
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-// -------------------------------------------------------------
-// ## Constantes del Nuevo Esquema
-// -------------------------------------------------------------
-
-const coleccionesStock = [
-  "StockCarnicos", "StockFrigorBalde", "StockFrigorImpulsivos", "StockFrigorPostres",
-  "StockFrigorPotes", "StockGlupsGranel", "StockGlupsImpulsivos", "StockGudfud",
-  "StockInal", "StockLambweston", "StockMexcal", "StockOrale", "StockPripan", "StockSwift"
+const colecciones = [
+  "StockCarnicos",
+  "StockFrigorBalde",
+  "StockFrigorImpulsivos",
+  "StockFrigorPostres",
+  "StockFrigorPotes",
+  "StockGlupsGranel",
+  "StockGlupsImpulsivos",
+  "StockGudfud",
+  "StockInal",
+  "StockLambweston",
+  "StockMexcal",
+  "StockOrale",
+  "StockPripan",
+  "StockSwift",
 ];
 
-const nombresColecciones = {
+const nombresEtiquetas = {
   StockCarnicos: "Cárnicos",
   StockFrigorBalde: "Frigor Baldes",
   StockFrigorImpulsivos: "Frigor Impulsivos",
@@ -30,153 +36,112 @@ const nombresColecciones = {
   StockMexcal: "Mexcal",
   StockOrale: "Orale",
   StockPripan: "Pripan",
-  StockSwift: "Swift"
+  StockSwift: "Swift",
 };
 
-const priceCollections = [
-  "PreciosExpress",
-  "PreciosFranquicia",
-  "PreciosGastronomico",
-  "PreciosStore",
-  "PreciosSupermercados"
-];
+const contenedor = document.getElementById("contenedor-gestion");
 
-// -------------------------------------------------------------
-// ## Funciones de CRUD Genéricas
-// -------------------------------------------------------------
+// Renderizado de paneles
+colecciones.forEach((col) => {
+  const div = document.createElement("div");
+  div.className = "panel";
+  div.innerHTML = `
+        <h2>${nombresEtiquetas[col]}</h2>
+        <div class="formulario-gestion">
+            <label>Nombre del producto</label>
+            <input type="text" id="n-${col}" placeholder="Ej: Hamburguesa">
+            <label>ID del producto (Código)</label>
+            <input type="text" id="i-${col}" placeholder="Ej: CAR-001">
+            <button class="btn-azul" id="btn-a-${col}">Agregar Producto</button>
+        </div>
+        <hr>
+        <div class="formulario-gestion">
+            <label>Borrar producto</label>
+            <input type="text" id="b-${col}" placeholder="Nombre exacto">
+            <button class="btn-borrar" id="btn-b-${col}">Borrar de Todo el Sistema</button>
+        </div>
+    `;
+  contenedor.appendChild(div);
 
-async function agregarProducto({ nombre, coleccion }) {
-  const producto = nombre.trim();
-  if (!producto) {
-    alert("Ingresa un nombre de producto válido.");
-    return;
-  }
-  
-  // En el nuevo esquema, el documento de stock se llama "Stock" en todas las colecciones
-  const documentoStock = "Stock";
-  const documentoPrecio = "Precio"; // El documento de precio se llama "Precio"
+  document.getElementById(`btn-a-${col}`).onclick = () => crearProducto(col);
+  document.getElementById(`btn-b-${col}`).onclick = () => borrarProducto(col);
+});
 
-  try {
-    // 1. Agregar el producto al Stock (inicialmente con 0 unidades)
-    await updateDoc(doc(db, coleccion, documentoStock), {
-      [producto]: 0
-    });
+/* ===================== CREAR PRODUCTO (BATCH) ===================== */
 
-    // 2. Agregar el producto a todas las colecciones de Precios (inicialmente con precio 0)
-    const camposPrecio = { [producto]: 0 };
-    const tareas = priceCollections.map(col => updateDoc(doc(db, col, documentoPrecio), camposPrecio));
-    
-    await Promise.all(tareas);
+async function crearProducto(coleccion) {
+  const nombreInput = document.getElementById(`n-${coleccion}`);
+  const idInput = document.getElementById(`i-${coleccion}`);
+  const btn = document.getElementById(`btn-a-${coleccion}`);
 
-    alert(`✅ Producto/Insumo '${producto}' agregado en ${coleccion} y Precios`);
-  } catch (e) {
-    console.error("Error agregando producto/insumo:", e);
-    alert("❌ Error agregando producto/insumo: " + e.message);
-  }
-}
+  const nombre = nombreInput.value.trim();
+  const idValor = idInput.value.trim();
 
-async function borrarProducto({ nombre, coleccion }) {
-  const producto = nombre.trim();
-  if (!producto) {
-    alert("Ingresa un nombre de producto válido.");
-    return;
-  }
-
-  const documentoStock = "Stock";
-  const documentoPrecio = "Precio";
+  if (!nombre || !idValor) return alert("Completa ambos campos");
 
   try {
-    const stockRef = doc(db, coleccion, documentoStock);
-    const snap = await getDoc(stockRef);
+    btn.disabled = true;
+    btn.textContent = "Procesando...";
 
-    if (!snap.exists() || !snap.data().hasOwnProperty(producto)) {
-      alert(`⚠️ El producto/insumo '${producto}' NO existe en ${coleccion}`);
-      return;
-    }
+    const batch = writeBatch(db);
 
-    const confirmar = confirm(`¿Seguro que querés borrar '${producto}' de ${coleccion}?`);
-    if (!confirmar) return;
+    // 1. Preparar el stock (inicia en 0)
+    const refStock = doc(db, coleccion, "Stock");
+    batch.set(refStock, { [nombre]: 0 }, { merge: true });
 
-    // 1. Borrar de Stock
-    await updateDoc(stockRef, { [producto]: deleteField() });
-    
-    // 2. Borrar de Precios
-    const camposBorrarPrecios = { [producto]: deleteField() };
-    const tareas = priceCollections.map(col => updateDoc(doc(db, col, documentoPrecio), camposBorrarPrecios));
-    
-    await Promise.all(tareas);
+    // 2. Preparar el ID
+    const refIDs = doc(db, "idProductos", "idProducto");
+    batch.set(refIDs, { [nombre]: idValor }, { merge: true });
 
-    alert(`🗑️ Producto/Insumo '${producto}' borrado de ${coleccion} y Precios`);
-  } catch (e) {
-    console.error("Error borrando producto/insumo:", e);
-    alert("❌ Error borrando producto/insumo: " + e.message);
+    // Ejecución atómica
+    await batch.commit();
+
+    alert(`Producto "${nombre}" creado con éxito ✅`);
+    nombreInput.value = "";
+    idInput.value = "";
+  } catch (error) {
+    console.error("Error al crear:", error);
+    alert("Error al guardar los datos.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Agregar Producto";
   }
 }
 
-// -------------------------------------------------------------
-// ## Generación de Paneles (Nuevo)
-// -------------------------------------------------------------
+/* ===================== BORRAR PRODUCTO (BATCH) ===================== */
 
-const stockPanelsContainer = document.getElementById("stock-panels-container");
+async function borrarProducto(coleccion) {
+  const inputBorrar = document.getElementById(`b-${coleccion}`);
+  const btn = document.getElementById(`btn-b-${coleccion}`);
+  const nombre = inputBorrar.value.trim();
 
-function generarPanel(coleccion, titulo) {
-  const panel = document.createElement("div");
-  panel.className = "panel";
-  
-  const h2 = document.createElement("h2");
-  h2.textContent = titulo;
-  panel.appendChild(h2);
+  if (!nombre) return alert("Escribe el nombre del producto");
+  if (!confirm(`¿Estás seguro de eliminar "${nombre}" de forma permanente?`))
+    return;
 
-  // Formulario de Agregar
-  const formAgregar = document.createElement("form");
-  formAgregar.id = `form-agregar-${coleccion}`;
-  formAgregar.innerHTML = `
-    <label>Nombre del producto</label>
-    <input type="text" id="nombre-${coleccion}" placeholder="Nombre del producto" required />
-    <button type="submit" class="btn-rojo">Agregar Producto</button>
-  `;
-  panel.appendChild(formAgregar);
+  try {
+    btn.disabled = true;
+    btn.textContent = "Eliminando...";
 
-  // Formulario de Borrar
-  const formBorrar = document.createElement("form");
-  formBorrar.id = `form-borrar-${coleccion}`;
-  formBorrar.innerHTML = `
-    <label>Borrar producto</label>
-    <input type="text" id="borrar-${coleccion}" placeholder="Nombre del producto a borrar" required />
-    <button type="submit" class="btn-gris">Borrar Producto</button>
-  `;
-  panel.appendChild(formBorrar);
-  
-  // Agregar Listeners
-  formAgregar.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const nombre = document.getElementById(`nombre-${coleccion}`).value;
-    agregarProducto({ nombre, coleccion });
-    e.target.reset();
-  });
+    const batch = writeBatch(db);
 
-  formBorrar.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const nombre = document.getElementById(`borrar-${coleccion}`).value;
-    borrarProducto({ nombre, coleccion });
-    e.target.reset();
-  });
+    // 1. Eliminar campo de la colección de Stock
+    const refStock = doc(db, coleccion, "Stock");
+    batch.update(refStock, { [nombre]: deleteField() });
 
-  return panel;
+    // 2. Eliminar campo del catálogo de IDs
+    const refIDs = doc(db, "idProductos", "idProducto");
+    batch.update(refIDs, { [nombre]: deleteField() });
+
+    await batch.commit();
+
+    alert("Producto eliminado del sistema ✅");
+    inputBorrar.value = "";
+  } catch (error) {
+    console.error("Error al borrar:", error);
+    alert("Error al intentar eliminar. Verifica que el nombre sea exacto.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Borrar de Todo el Sistema";
+  }
 }
-
-function inicializarPaneles() {
-  stockPanelsContainer.innerHTML = ''; // Limpiar el mensaje de carga
-
-  coleccionesStock.forEach(col => {
-    const titulo = nombresColecciones[col] || col;
-    const panel = generarPanel(col, titulo);
-    stockPanelsContainer.appendChild(panel);
-  });
-}
-
-// -------------------------------------------------------------
-// ## Inicio
-// -------------------------------------------------------------
-
-inicializarPaneles();

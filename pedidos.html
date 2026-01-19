@@ -179,7 +179,9 @@
         justify-content: center;
       }
       .filtro-box {
-        flex: 1 1 200px; 
+        /* *** CAMBIO CRUCIAL: Se establece la base flexible al 100% para forzar la verticalidad *** */
+        flex: 1 1 100%; 
+        max-width: 400px; /* Limita el ancho máximo del input */
         min-width: 150px;
       }
     </style>
@@ -220,6 +222,15 @@
             <input type="text" id="localidadInput" placeholder="Localidad" />
           </div>
 
+          <div class="filtro-box">
+            <label for="vendedorSelect">Filtrar por Vendedor:</label>
+            <select id="vendedorSelect">
+              <option value="Todos">Todos</option>
+              <option value="Betty">Betty</option>
+              <option value="Alberto">Alberto</option>
+              <option value="Ariel">Ariel</option>
+            </select>
+          </div>
         </div>
 
         <div id="pedidosContainer"></div>

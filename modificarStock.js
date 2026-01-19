@@ -1,17 +1,14 @@
-// modificarStock.js
 import { db } from "./firebase.js";
 import {
   doc,
   getDoc,
-  // updateDoc, // no usamos updateDoc directamente por si falta doc
-  setDoc
+  writeBatch, // 🔹 Importamos Batch para guardado atómico
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 const contenedor = document.getElementById("contenedor-paneles");
 const refrescarBtn = document.getElementById("refrescar-btn");
 const guardarBtn = document.getElementById("guardar-stock");
 
-// Lista de colecciones (idéntica a la de stock.js)
 const colecciones = [
   "StockCarnicos",
   "StockFrigorBalde",
@@ -26,10 +23,9 @@ const colecciones = [
   "StockMexcal",
   "StockOrale",
   "StockPripan",
-  "StockSwift"
+  "StockSwift",
 ];
 
-// Mapeo nombre -> título amigable (igual que en stock.js)
 const nombresColecciones = {
   StockCarnicos: "Cárnicos",
   StockFrigorBalde: "Frigor Baldes",
@@ -44,140 +40,130 @@ const nombresColecciones = {
   StockMexcal: "Mexcal",
   StockOrale: "Orale",
   StockPripan: "Pripan",
-  StockSwift: "Swift"
+  StockSwift: "Swift",
 };
 
-// Mantener el estado actual de cada colección en memoria
-const estadoColecciones = {}; // { "StockCarnicos": { prod1: 12, ... }, ... }
+/* ===================== RENDERIZADO ===================== */
 
-function crearPanelEditable(titulo, idTabla, nombreColeccion) {
+function crearPanelEditable(titulo, nombreColeccion) {
   const panel = document.createElement("div");
   panel.className = "panel";
-
-  const h2 = document.createElement("h2");
-  h2.textContent = titulo;
-  panel.appendChild(h2);
-
-  const table = document.createElement("table");
-  table.id = `tabla-${idTabla}`;
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th>Producto</th>
-        <th style="text-align:right">Cantidad</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
+  panel.innerHTML = `
+    <h2>${titulo}</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Producto</th>
+          <th>Cantidad</th>
+        </tr>
+      </thead>
+      <tbody data-collection="${nombreColeccion}"></tbody>
+    </table>
   `;
-  panel.appendChild(table);
-
-  // guardamos referencia al atributo data-collection en el tbody para luego leer
-  const tbody = table.querySelector("tbody");
-  tbody.dataset.collection = nombreColeccion;
-
   contenedor.appendChild(panel);
-  return tbody;
+  return panel.querySelector("tbody");
 }
 
-function renderizarInputs(tablaBody, data) {
+function renderizarInputs(tablaBody, data, idsData) {
   tablaBody.innerHTML = "";
-  if (!data || Object.keys(data).length === 0) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="2" style="text-align:center; color:#666;">Sin datos</td>`;
-    tablaBody.appendChild(tr);
+  const productos = Object.keys(data).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" })
+  );
+
+  if (productos.length === 0) {
+    tablaBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#666;">Sin datos</td></tr>`;
     return;
   }
 
-  const productos = Object.keys(data).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  productos.forEach(prod => {
+  productos.forEach((prod) => {
     const tr = document.createElement("tr");
-
-    // input numérico con data-key para el producto
     tr.innerHTML = `
+      <td>${idsData[prod] || "---"}</td>
       <td>${prod}</td>
-      <td style="text-align:right">
-        <input type="number" min="0" value="${data[prod]}" data-key="${prod}">
+      <td>
+        <input type="number" min="0" value="${
+          data[prod]
+        }" data-key="${prod}" class="cantidad-input">
       </td>
     `;
     tablaBody.appendChild(tr);
   });
 }
 
+/* ===================== CARGA (PARALELA) ===================== */
+
 async function cargarModificarTodos() {
   try {
+    contenedor.innerHTML =
+      "<p style='text-align:center;'>Cargando stock para edición...</p>";
+
+    // Cargamos IDs y Stocks en paralelo
+    const promesas = colecciones.map((col) => getDoc(doc(db, col, "Stock")));
+    const promesaIDs = getDoc(doc(db, "idProductos", "idProducto"));
+
+    const resultados = await Promise.all([...promesas, promesaIDs]);
+    const idsData = resultados[resultados.length - 1].exists()
+      ? resultados[resultados.length - 1].data()
+      : {};
+
     contenedor.innerHTML = "";
-    // Crear paneles
-    const tbodies = colecciones.map((col, idx) => {
-      const idTabla = `${col}-${idx}`;
-      const titulo = nombresColecciones[col] || col;
-      const tbody = crearPanelEditable(titulo, idTabla, col);
-      return { col, tbody };
-    });
 
-    // Solicitar todos los docs
-    const promesas = tbodies.map(item => {
-      const referencia = doc(db, item.col, "Stock");
-      return getDoc(referencia)
-        .then(snap => ({ col: item.col, tbody: item.tbody, snap }))
-        .catch(err => ({ col: item.col, tbody: item.tbody, error: err }));
-    });
-
-    const resultados = await Promise.all(promesas);
-
-    resultados.forEach(res => {
-      if (res.error) {
-        res.tbody.innerHTML = `<tr><td colspan="2" style="color:#c00; text-align:center;">Error al cargar</td></tr>`;
-        console.error("Error cargando colección", res.col, res.error);
-        return;
-      }
-      const data = res.snap.exists() ? res.snap.data() : {};
-      // almacenar estado
-      estadoColecciones[res.col] = { ...(data || {}) };
-      renderizarInputs(res.tbody, estadoColecciones[res.col]);
-    });
-
+    for (let i = 0; i < colecciones.length; i++) {
+      const col = colecciones[i];
+      const snap = resultados[i];
+      const tbody = crearPanelEditable(nombresColecciones[col] || col, col);
+      const data = snap.exists() ? snap.data() : {};
+      renderizarInputs(tbody, data, idsData);
+    }
   } catch (e) {
     console.error(e);
-    alert("Error al cargar los stocks");
+    alert("Error al cargar los stocks ❌");
   }
 }
 
-// Guardar cambios: leer todos los inputs de cada tbody y enviar a Firestore
+/* ===================== GUARDADO ATÓMICO (BATCH) ===================== */
+
 guardarBtn.addEventListener("click", async () => {
   try {
     guardarBtn.disabled = true;
-    guardarBtn.textContent = "Guardando...";
+    guardarBtn.textContent = "Guardando en Batch...";
 
-    const operaciones = [];
+    // 1. Iniciamos el Batch
+    const batch = writeBatch(db);
+    let hayCambios = false;
 
-    // para cada tbody dentro de contenedor
-    contenedor.querySelectorAll("tbody").forEach(tbody => {
+    // 2. Recorremos los paneles para armar la actualización
+    contenedor.querySelectorAll("tbody").forEach((tbody) => {
       const coleccion = tbody.dataset.collection;
-      if (!coleccion) return;
-
-      // construir objeto con los valores actuales
       const nuevoObjeto = {};
-      tbody.querySelectorAll("input[data-key]").forEach(input => {
-        const k = input.dataset.key;
-        const v = Number(input.value) || 0;
-        nuevoObjeto[k] = v;
-      });
+      const inputs = tbody.querySelectorAll("input[data-key]");
 
-      // si no hay elementos no hacemos nada
-      // usamos setDoc con merge true para no borrar otros campos
-      const ref = doc(db, coleccion, "Stock");
-      operaciones.push(setDoc(ref, nuevoObjeto, { merge: true }));
+      if (inputs.length > 0) {
+        inputs.forEach((input) => {
+          nuevoObjeto[input.dataset.key] = Number(input.value) || 0;
+        });
+
+        // Agregamos la operación al batch
+        const docRef = doc(db, coleccion, "Stock");
+        batch.set(docRef, nuevoObjeto); // Usamos set para sobrescribir el stock completo de esa col
+        hayCambios = true;
+      }
     });
 
-    await Promise.all(operaciones);
+    if (!hayCambios) {
+      alert("No hay datos para guardar");
+      return;
+    }
 
-    alert("Stock actualizado correctamente ✅");
-    // recargar para reflejar cambios
-    await cargarModificarTodos();
+    // 3. Ejecutamos el batch (una sola petición de red para todo)
+    await batch.commit();
 
+    alert("¡Stock actualizado correctamente en todas las categorías! ✅");
+    await cargarModificarTodos(); // Recargamos para refrescar la vista
   } catch (err) {
-    console.error(err);
-    alert("Error guardando stock ❌");
+    console.error("Error en batch:", err);
+    alert("Error crítico al guardar. Comprueba tu conexión. ❌");
   } finally {
     guardarBtn.disabled = false;
     guardarBtn.textContent = "Guardar Cambios";
@@ -185,6 +171,4 @@ guardarBtn.addEventListener("click", async () => {
 });
 
 refrescarBtn.addEventListener("click", cargarModificarTodos);
-
-// carga inicial
 cargarModificarTodos();

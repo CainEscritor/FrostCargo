@@ -4,17 +4,26 @@ import {
   getDoc,
   updateDoc,
   Timestamp,
-  setDoc, // Necesario para la actualización de stock
+  setDoc,
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-// -------------------------------------------------------------
-// ## Nuevas Constantes de Colecciones
-// -------------------------------------------------------------
-
+const categorias = ["Ingrese categoría", "Remito", "Factura"];
+const vendedores = ["Seleccione vendedor", "Betty", "Alberto", "Ariel"];
 const coleccionesStock = [
-  "StockCarnicos", "StockFrigorBalde", "StockFrigorImpulsivos", "StockFrigorPostres",
-  "StockFrigorPotes", "StockGlupsGranel", "StockGlupsImpulsivos", "StockGudfud",
-  "StockInal", "StockLambweston", "StockMexcal", "StockOrale", "StockPripan", "StockSwift"
+  "StockCarnicos",
+  "StockFrigorBalde",
+  "StockFrigorImpulsivos",
+  "StockFrigorPostres",
+  "StockFrigorPotes",
+  "StockGlupsGranel",
+  "StockGlupsImpulsivos",
+  "StockGudfud",
+  "StockInal",
+  "StockLambweston",
+  "StockMexcal",
+  "StockOrale",
+  "StockPripan",
+  "StockSwift",
 ];
 
 const nombresColecciones = {
@@ -31,400 +40,207 @@ const nombresColecciones = {
   StockMexcal: "Mexcal",
   StockOrale: "Orale",
   StockPripan: "Pripan",
-  StockSwift: "Swift"
+  StockSwift: "Swift",
 };
 
-const categorias = [
-  "Ingrese valor",
-  "Express",
-  "Store",
-  "Gastronómico",
-  "Franquicia",
-  "Supermercados",
-  "Otro",
-];
-const recorridos = [
-  "Ingrese valor",
-  "Ruta 36/ Tan. y Ascasubi",
-  "Heladerías Río 3",
-  "Sudeste",
-  "Otros",
-];
-
-// 🔹 Elementos del DOM
 const pedidoIdDisplay = document.getElementById("pedido-id-display");
-const diaSelect = document.getElementById("dia");
-const numeroDiaSelect = document.getElementById("numeroDia");
+const fechaInput = document.getElementById("fechaEntrega");
 const categoriaSelect = document.getElementById("categoria");
-const recorridoSelect = document.getElementById("recorrido");
+const localidadInput = document.getElementById("localidad");
+const vendedorSelect = document.getElementById("vendedor");
 const contenedorColecciones = document.getElementById("contenedor-colecciones");
+const mensajeConfirmacion = document.getElementById("mensaje-confirmacion");
+const mensajeErrorValidacion = document.getElementById(
+  "mensaje-error-validacion"
+);
 
-// 🔹 Variables de estado
+const stockModal = document.getElementById("stock-advertencia-modal");
+const stockDetalle = document.getElementById("stock-detalle");
+const btnForzarStock = document.getElementById("btn-forzar-stock");
+const btnCancelarStock = document.getElementById("btn-cancelar-stock");
+
 let pedidoId = null;
 let pedidoOriginal = null;
+let stocksActuales = {};
+let productosEnEdicion = {};
 
-// Estructura de stock: { Coleccion: { NombreProducto: cantidadActual, ... } }
-let stocksPorColeccion = {}; 
-// Estructura de inputs: { Coleccion: [{ nombre: 'Prod', cantidad: 5, oldQty: 3 }, ...] }
-let productosEnEdicion = {}; 
-
-// 🔹 Funciones de utilidad (mostrarEstado)
 function fillSelect(select, options) {
   select.innerHTML = options
-    .map((opt) => `<option value="${opt}">${opt}</option>`)
+    .map(
+      (opt) =>
+        `<option value="${
+          opt.includes("Ingrese") || opt.includes("Seleccione")
+            ? "Ingrese valor"
+            : opt
+        }">${opt}</option>`
+    )
     .join("");
 }
 
-function mostrarEstado(msg) {
-  const snackbar = document.createElement("div");
-  snackbar.textContent = msg.replace(/\n/g, " | ");
-  snackbar.style.position = "fixed";
-  snackbar.style.bottom = "20px";
-  snackbar.style.left = "50%";
-  snackbar.style.transform = "translateX(-50%)";
-  snackbar.style.backgroundColor = msg.includes("❌")
-    ? "red"
-    : msg.includes("⚠️")
-    ? "darkorange"
-    : "#333";
-  snackbar.style.color = "#fff";
-  snackbar.style.padding = "12px 24px";
-  snackbar.style.borderRadius = "8px";
-  snackbar.style.zIndex = 1000;
-  snackbar.style.opacity = 0;
-  snackbar.style.transition = "opacity 0.3s";
-  document.body.appendChild(snackbar);
-  requestAnimationFrame(() => (snackbar.style.opacity = 1));
-  setTimeout(() => {
-    snackbar.style.opacity = 0;
-    setTimeout(() => document.body.removeChild(snackbar), 300);
-  }, 3000);
-}
-
-// -------------------------------------------------------------
-// ## Carga de Datos y Productos
-// -------------------------------------------------------------
-
-async function cargarProductosYPedido() {
+async function inicializar() {
   const params = new URLSearchParams(window.location.search);
   pedidoId = params.get("id");
-
   if (!pedidoId) {
-    mostrarEstado("ID de pedido no encontrado en la URL ❌");
-    pedidoIdDisplay.textContent = "Error: ID no encontrado";
+    pedidoIdDisplay.textContent = "Error: ID no recibido";
     return;
   }
 
-  pedidoIdDisplay.textContent = `Modificando: ${pedidoId}`;
+  fillSelect(categoriaSelect, categorias);
+  fillSelect(vendedorSelect, vendedores);
 
   try {
-    // 1. Cargar Pedido Original
     const pedidoSnap = await getDoc(doc(db, "Pedidos", pedidoId));
     if (!pedidoSnap.exists()) {
-      mostrarEstado(`Pedido "${pedidoId}" no existe ❌`);
-      pedidoIdDisplay.textContent = "Error: Pedido no existe";
+      pedidoIdDisplay.textContent = "Error: El pedido no existe";
       return;
     }
+
     pedidoOriginal = pedidoSnap.data();
+    pedidoIdDisplay.textContent = `Modificando: ${pedidoId}`;
+    fechaInput.value = pedidoOriginal.fechaEntrega || "";
+    categoriaSelect.value = pedidoOriginal.categoria || "Ingrese valor";
+    localidadInput.value = pedidoOriginal.Localidad || "";
+    vendedorSelect.value = pedidoOriginal.Vendedor || "Ingrese valor";
 
-    // 2. Cargar Todos los Stocks de las 14 colecciones
-    const stockPromises = coleccionesStock.map(col => getDoc(doc(db, col, "Stock")));
-    const stockSnaps = await Promise.all(stockPromises);
+    for (const col of coleccionesStock) {
+      const sSnap = await getDoc(doc(db, col, "Stock"));
+      const stockData = sSnap.exists() ? sSnap.data() : {};
+      stocksActuales[col] = stockData;
 
-    stocksPorColeccion = {};
-    productosEnEdicion = {};
-
-    stockSnaps.forEach((snap, index) => {
-      const col = coleccionesStock[index];
-      const stockData = snap.data() || {};
-      stocksPorColeccion[col] = stockData;
-      
-      const productosPedido = pedidoOriginal.productos || {};
-      const listaEdicion = [];
-
-      // Recorrer todos los productos en stock
-      Object.keys(stockData).sort().forEach(nombreProd => {
-        // La clave en el pedido es "Coleccion::Producto"
-        const pedidoKey = `${col}::${nombreProd}`;
-        const detallePedido = productosPedido[pedidoKey] || {};
-        const cantidadEnPedido = detallePedido.cantidad || 0;
-
-        listaEdicion.push({
-          nombre: nombreProd,
-          coleccion: col,
-          cantidad: cantidadEnPedido, // Cantidad actual en el input
-          oldQty: cantidadEnPedido,   // Cantidad original del pedido (para calcular el delta)
+      // CORRECCIÓN: Ordenar alfabéticamente las llaves del documento de stock
+      productosEnEdicion[col] = Object.keys(stockData)
+        .sort((a, b) => a.localeCompare(b)) // Orden alfabético robusto
+        .map((prodName) => {
+          const pedidoKey = `${col}::${prodName}`;
+          const cantOriginal =
+            pedidoOriginal.productos?.[pedidoKey]?.cantidad || 0;
+          return {
+            nombre: prodName,
+            coleccion: col,
+            cantidadActual: cantOriginal,
+            cantidadOriginal: cantOriginal,
+          };
         });
-      });
-
-      productosEnEdicion[col] = listaEdicion;
-    });
-
-    // 3. Rellenar Dropdowns y Campos Fijos
-    fillSelect(categoriaSelect, categorias);
-    fillSelect(recorridoSelect, recorridos);
-
-    const dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
-    const numerosDia = Array.from({ length: 31 }, (_, i) => String(i + 1));
-    fillSelect(diaSelect, dias);
-    fillSelect(numeroDiaSelect, numerosDia);
-
-    const partesId = pedidoId.split(" ");
-    const diaNum = partesId.length > 1 ? partesId[partesId.length - 1] : "";
-
-    diaSelect.value = diaNum.split("-")[0] || dias[0];
-    numeroDiaSelect.value = diaNum.split("-")[1] || numerosDia[0];
-
-    categoriaSelect.value = pedidoOriginal.categoria || categorias[0];
-    recorridoSelect.value = pedidoOriginal.recorrido || recorridos[0];
-
-    renderProductos();
-
+    }
+    renderizarProductos();
   } catch (e) {
-    console.error("Error en la carga inicial:", e);
-    mostrarEstado("Error al cargar productos o pedido ❌");
+    console.error(e);
+    pedidoIdDisplay.textContent = "Error al conectar con la base de datos";
   }
 }
 
-// -------------------------------------------------------------
-// ## Renderizado y Lógica de Inputs (Adaptado)
-// -------------------------------------------------------------
-
-function renderProductos() {
+function renderizarProductos() {
   contenedorColecciones.innerHTML = "";
-
-  coleccionesStock.forEach(col => {
-    const productos = productosEnEdicion[col] || [];
-    const titulo = nombresColecciones[col] || col;
-
+  coleccionesStock.forEach((col) => {
     const panel = document.createElement("div");
-    panel.className = "coleccion-panel panel";
+    panel.className = "coleccion-panel";
+    panel.innerHTML = `<h3>${nombresColecciones[col]}</h3>`;
 
-    const h3 = document.createElement("h3");
-    h3.textContent = titulo;
-    panel.appendChild(h3);
-
-    const tbody = document.createElement("div");
-    tbody.className = "coleccion-body";
-    tbody.dataset.collection = col;
-    
-    if (productos.length === 0) {
-      tbody.innerHTML = `<p style="text-align: center; color: #666;">Sin productos en Stock</p>`;
-    }
-
-    productos.forEach((prod, index) => {
+    // Aquí recorremos la lista que ya guardamos ordenada en inicializar()
+    productosEnEdicion[col].forEach((p) => {
       const fila = document.createElement("div");
-      fila.className = `fila ${prod.cantidad > 0 ? 'activo' : ''}`;
-
-      const celNombre = document.createElement("div");
-      celNombre.className = "celda";
-      celNombre.textContent = prod.nombre;
-
-      const celInput = document.createElement("div");
-      celInput.style.width = "100px";
-      celInput.style.textAlign = "right";
-
-      const input = document.createElement("input");
-      input.type = "number";
-      input.min = "0";
-      input.className = "cantidad-input";
-      // Usamos el índice dentro del array de edición para referencia
-      input.dataset.index = index; 
-      input.dataset.collection = col;
-      input.value = prod.cantidad;
-
-      input.addEventListener("input", (e) => {
-        const val = parseInt(e.target.value) || 0;
-        const idx = parseInt(e.target.dataset.index);
-        const inputCol = e.target.dataset.collection;
-        
-        // Actualizar el estado en memoria
-        if (productosEnEdicion[inputCol] && productosEnEdicion[inputCol][idx]) {
-          productosEnEdicion[inputCol][idx].cantidad = val;
-        }
-
-        if (val > 0) fila.classList.add("activo"); else fila.classList.remove("activo");
-      });
-
-      celInput.appendChild(input);
-      fila.appendChild(celNombre);
-      fila.appendChild(celInput);
-      tbody.appendChild(fila);
+      fila.className = `fila ${p.cantidadActual > 0 ? "activo" : ""}`;
+      fila.innerHTML = `<span>${p.nombre}</span><input type="number" min="0" value="${p.cantidadActual}" class="cantidad-input">`;
+      fila.querySelector("input").oninput = (e) => {
+        p.cantidadActual = parseInt(e.target.value) || 0;
+        fila.classList.toggle("activo", p.cantidadActual > 0);
+      };
+      panel.appendChild(fila);
     });
-
-    panel.appendChild(tbody);
     contenedorColecciones.appendChild(panel);
   });
 }
 
-// -------------------------------------------------------------
-// ## Simulación y Validación de Stock (Adaptado)
-// -------------------------------------------------------------
+async function ejecutarGuardado(forzar = false) {
+  let valid = true;
+  categoriaSelect.classList.remove("input-error");
+  vendedorSelect.classList.remove("input-error");
 
-// Función central que simula el ajuste de stock para todas las colecciones
-function simularAjusteStockGeneral() {
-  const advertencias = [];
-  
-  for (const col of coleccionesStock) {
-    const productos = productosEnEdicion[col] || [];
-    const stockOriginal = stocksPorColeccion[col] || {};
-    const stockName = nombresColecciones[col] || col;
-
-    for (const p of productos) {
-      const oldQty = p.oldQty; // Cantidad original que tenía el pedido
-      const newQty = p.cantidad; // Nueva cantidad que se pide
-
-      // Delta: (Viejo - Nuevo). Positivo = se devuelve al stock. Negativo = se saca más.
-      const delta = oldQty - newQty; 
-
-      if (delta < 0) {
-        // Solo si se está SACANDO más de lo que se devuelve
-        const stockActual = stockOriginal[p.nombre] || 0;
-        const nuevoStock = stockActual + delta; // delta es negativo
-
-        if (nuevoStock < 0) {
-          advertencias.push(
-            `Stock Negativo: ${stockName} - ${p.nombre} quedará en ${nuevoStock} ❌`
-          );
-        } else if (nuevoStock === 0) {
-          advertencias.push(
-            `Stock Agotado: ${stockName} - ${p.nombre} queda en 0 ⚠️`
-          );
-        }
-      }
-    }
+  if (categoriaSelect.value === "Ingrese valor") {
+    categoriaSelect.classList.add("input-error");
+    valid = false;
+  }
+  if (vendedorSelect.value === "Ingrese valor") {
+    vendedorSelect.classList.add("input-error");
+    valid = false;
   }
 
-  // En este nuevo esquema, no existe la complejidad de Fraccionados/Impulsivos
-  // por lo que se elimina la lógica de simularAjusteFraccionados.
-
-  return advertencias;
-}
-
-
-// -------------------------------------------------------------
-// ## Guardar Modificación con Bloqueo (Adaptado)
-// -------------------------------------------------------------
-
-document.getElementById("pedido-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  if (!pedidoId || !pedidoOriginal) {
-    mostrarEstado("No se pudo cargar el pedido original ❌");
+  if (!valid) {
+    mensajeErrorValidacion.style.display = "block";
+    setTimeout(() => (mensajeErrorValidacion.style.display = "none"), 3000);
     return;
   }
 
-  const categoria = categoriaSelect.value;
-  const recorrido = recorridoSelect.value;
-
-  if (categoria === "Ingrese valor" || recorrido === "Ingrese valor") {
-    mostrarEstado("Completa Categoría y Recorrido ❌");
-    return;
-  }
-
-  // Contar el total de productos pedidos
-  let totalPedidos = 0;
-  let productosParaPedido = {};
+  let criticos = [];
+  const batchUpdatesStock = {};
+  const nuevosProductosPedido = {};
 
   for (const col of coleccionesStock) {
-    (productosEnEdicion[col] || []).forEach(p => {
-      if (p.cantidad > 0) {
-        totalPedidos += p.cantidad;
-        // Formato para guardar en el sub-objeto 'productos' del pedido
-        const pedidoKey = `${p.coleccion}::${p.nombre}`;
-        productosParaPedido[pedidoKey] = {
-          cantidad: p.cantidad,
-          coleccion: p.coleccion,
+    const stockRef = stocksActuales[col];
+    const updates = { ...stockRef };
+    productosEnEdicion[col].forEach((p) => {
+      const delta = p.cantidadOriginal - p.cantidadActual;
+      const nuevoStockVal = (stockRef[p.nombre] || 0) + delta;
+
+      if (delta !== 0) updates[p.nombre] = nuevoStockVal;
+      if (nuevoStockVal < 0)
+        criticos.push(
+          `${p.nombre} (Stock: ${
+            stockRef[p.nombre] || 0
+          }, Quedaría: ${nuevoStockVal})`
+        );
+
+      if (p.cantidadActual > 0) {
+        nuevosProductosPedido[`${col}::${p.nombre}`] = {
+          cantidad: p.cantidadActual,
           producto: p.nombre,
-          checked: false 
+          coleccion: col,
+          checked: false,
         };
       }
     });
+    batchUpdatesStock[col] = updates;
   }
 
-  if (totalPedidos === 0) {
-    mostrarEstado("Debe pedir al menos un producto ❌");
+  if (criticos.length > 0 && !forzar) {
+    stockDetalle.innerHTML = `<ul>${criticos
+      .map((i) => `<li>${i}</li>`)
+      .join("")}</ul>`;
+    stockModal.style.display = "flex";
     return;
   }
 
-  // 1. Simular los ajustes de stock
-  let advertenciasStock = simularAjusteStockGeneral();
-
-  // 2. Revisar Advertencias y Bloquear/Confirmar (MISMA LÓGICA)
-  if (advertenciasStock.length > 0) {
-    const stockNegativoEncontrado = advertenciasStock.some((msg) =>
-      msg.includes("Stock Negativo")
-    );
-
-    let mensaje = stockNegativoEncontrado
-      ? "🚨 ERROR DE STOCK. La operación resultará en stock negativo y ha sido CANCELADA. Corrige el pedido. 🚨"
-      : "⚠️ ADVERTENCIA DE STOCK. La operación agotará el stock de uno o más productos. ¿Deseas continuar con el pedido y dejar el stock en cero? ⚠️";
-
-    mensaje += "\n\nProblemas encontrados:\n" + advertenciasStock.join("\n");
-
-    if (stockNegativoEncontrado) {
-      mostrarEstado(mensaje);
-      return; // Detener la ejecución
-    }
-
-    if (!confirm(mensaje)) {
-      mostrarEstado("Modificación cancelada por el usuario. 🛑");
-      return; // Detener la ejecución
-    }
-  }
-
-  // 3. Si no hay problemas o el usuario confirmó, proceder con la actualización real.
   try {
-    // a) Actualizar el documento del Pedido (con el nuevo formato 'productos')
-    const pedidoActualizado = {
-      categoria,
-      recorrido,
+    await updateDoc(doc(db, "Pedidos", pedidoId), {
+      fechaEntrega: fechaInput.value,
+      categoria: categoriaSelect.value,
+      Localidad: localidadInput.value,
+      Vendedor: vendedorSelect.value,
       fechaModificacion: Timestamp.now(),
-      productos: productosParaPedido // Usamos la estructura mapeada
-    };
-    await updateDoc(doc(db, "Pedidos", pedidoId), pedidoActualizado);
-
-    // b) Preparar la actualización REAL del Stock para CADA colección
-    const updatePromises = [];
+      productos: nuevosProductosPedido,
+    });
 
     for (const col of coleccionesStock) {
-      const productos = productosEnEdicion[col] || [];
-      const stockOriginal = stocksPorColeccion[col] || {};
-      const updates = {};
-      
-      for (const p of productos) {
-        const oldQty = p.oldQty; 
-        const newQty = p.cantidad; 
-        const delta = oldQty - newQty;
-
-        if (delta !== 0) {
-          // El nuevo valor del stock es el stock original + el delta (diferencia)
-          updates[p.nombre] = (stockOriginal[p.nombre] || 0) + delta;
-        }
-      }
-
-      if (Object.keys(updates).length) {
-        // Usamos setDoc con merge para actualizar solo los productos de esta colección
-        // y crear el documento si no existe (aunque ya debería existir 'Stock')
-        const docRef = doc(db, col, "Stock");
-        updatePromises.push(setDoc(docRef, updates, { merge: true }));
-      }
+      await setDoc(doc(db, col, "Stock"), batchUpdatesStock[col]);
     }
 
-    // Ejecutar todas las actualizaciones de stock en paralelo
-    await Promise.all(updatePromises);
-    
-    // La lógica de Fraccionados/Impulsivos se elimina ya que ahora son colecciones separadas.
-
-    mostrarEstado(`✅ Pedido "${pedidoId}" actualizado`);
+    stockModal.style.display = "none";
+    mensajeConfirmacion.style.display = "block";
     setTimeout(() => {
       window.location.href = "pedidos.html";
-    }, 1500);
+    }, 2000);
   } catch (e) {
-    console.error("Error actualizando pedido o stock:", e);
-    mostrarEstado("Error actualizando pedido ❌");
+    console.error(e);
+    alert("Error al intentar actualizar el pedido. Reintente.");
   }
-});
+}
 
-// 🔹 Iniciar la carga
-cargarProductosYPedido();
+document.getElementById("pedido-form").onsubmit = (e) => {
+  e.preventDefault();
+  ejecutarGuardado(false);
+};
+
+btnForzarStock.onclick = () => ejecutarGuardado(true);
+btnCancelarStock.onclick = () => (stockModal.style.display = "none");
+
+inicializar();

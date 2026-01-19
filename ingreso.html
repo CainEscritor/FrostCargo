@@ -168,20 +168,29 @@
         background: #f44336;
         color: #fff;
       }
-      
+
       label {
         width: 100%;
         display: block;
         margin-bottom: 6px;
         text-align: left;
       }
-      
     </style>
   </head>
   <body>
     <header class="header">
-      <div style="display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px;">
-        <a href="index.html" class="logo"><img src="images/Grido_logo.png" alt="Logo Heladería" /></a>
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          padding: 12px;
+        "
+      >
+        <a href="index.html" class="logo"
+          ><img src="images/Grido_logo.png" alt="Logo Heladería"
+        /></a>
         <h1>Ingresar Pedido</h1>
       </div>
     </header>
@@ -191,7 +200,7 @@
           <div class="input-container">
             <label for="nombre">Nombre del cliente</label>
             <input type="text" id="nombre" required autocomplete="off" />
-            </div>
+          </div>
 
           <div class="input-container">
             <label for="fechaNumerica">Fecha (dd/mm/aaaa)</label>
@@ -208,21 +217,53 @@
             <input type="text" id="localidad" required autocomplete="off" />
           </div>
 
+          <div class="input-container">
+            <label for="vendedor">Vendedor</label>
+            <select id="vendedor" required></select>
+          </div>
+
           <h2>Productos (por colección)</h2>
           <div id="contenedor-colecciones" class="grupos-panels"></div>
           <button type="submit" class="btn-guardar">Guardar Pedido</button>
         </form>
       </div>
     </main>
-    
+
+    <div id="mensaje-confirmacion" style="
+        position: fixed; 
+        top: 20px; 
+        right: 20px; 
+        background-color: #4CAF50; 
+        color: white; 
+        padding: 15px 25px; 
+        border-radius: 5px; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
+        display: none; 
+        z-index: 4000; 
+        font-weight: bold;
+    ">
+        Pedido Guardado con Éxito! 🎉
+    </div>
     <div id="cliente-advertencia-modal" class="modal-overlay-custom">
       <div class="modal-content-custom">
         <h3>⚠️ Cliente No Registrado</h3>
-        <p>El nombre <strong id="nombre-cliente-advertencia"></strong> no está registrado. ¿Desea guardar de todos modos?</p>
+        <p>
+          El nombre <strong id="nombre-cliente-advertencia"></strong> no está
+          registrado. ¿Desea guardar de todos modos?
+        </p>
         <div class="modal-buttons-custom">
-          <button id="btn-guardar-forzado" class="btn-accept">Guardar de todos modos</button>
+          <button id="btn-guardar-forzado" class="btn-accept">
+            Guardar de todos modos
+          </button>
           <button id="btn-cancelar-modal" class="btn-cancel">Cancelar</button>
-          <a id="btn-abrir-nuevo-cliente" href="nuevoCliente.html" target="_blank" class="btn-accept" style="text-decoration: none; display: block; text-align: center">Abrir registro de cliente</a>
+          <a
+            id="btn-abrir-nuevo-cliente"
+            href="nuevoCliente.html"
+            target="_blank"
+            class="btn-accept"
+            style="text-decoration: none; display: block; text-align: center"
+            >Abrir registro de cliente</a
+          >
         </div>
       </div>
     </div>
@@ -230,14 +271,30 @@
       <div class="modal-content-custom">
         <h3 id="stock-advertencia-titulo"></h3>
         <p id="stock-advertencia-mensaje"></p>
-        <div id="stock-detalle" style="max-height: 200px; overflow: auto; margin-top: 8px; border: 1px solid #eee; padding: 8px; border-radius: 6px;"></div>
+        <div
+          id="stock-detalle"
+          style="
+            max-height: 200px;
+            overflow: auto;
+            margin-top: 8px;
+            border: 1px solid #eee;
+            padding: 8px;
+            border-radius: 6px;
+          "
+        ></div>
         <div class="modal-buttons-custom" style="margin-top: 12px">
-          <button id="btn-forzar-stock" class="btn-accept" style="display: none">Forzar guardado</button>
+          <button
+            id="btn-forzar-stock"
+            class="btn-accept"
+            style="display: none"
+          >
+            Forzar guardado
+          </button>
           <button id="btn-cancelar-stock" class="btn-cancel">Cancelar</button>
         </div>
       </div>
     </div>
-    
+
     <script type="module" src="firebase.js"></script>
     <script type="module" src="ingreso.js"></script>
     <nav class="footer-nav">

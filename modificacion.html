@@ -7,7 +7,6 @@
     <link rel="icon" type="image/png" href="images/favicon.png" />
     <link rel="stylesheet" href="style.css" />
     <style>
-      /* Estilos CSS (se mantienen igual que tu original) */
       body {
         font-family: Arial, sans-serif;
         margin: 0;
@@ -16,7 +15,6 @@
         display: flex;
         flex-direction: column;
       }
-
       main {
         flex: 1;
         display: flex;
@@ -24,16 +22,14 @@
         justify-content: center;
         padding: 50px 0;
       }
-
       .panel {
         background: white;
         border-radius: 12px;
-        padding: 20px;
-        max-width: 1200px;
+        padding: 30px;
+        max-width: 900px;
         width: 95%;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
       }
-
       h1,
       h2 {
         margin-bottom: 15px;
@@ -43,132 +39,240 @@
       form#pedido-form {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 15px;
         align-items: center;
       }
-
-      form#pedido-form input[type="text"],
-      form#pedido-form select {
-        width: 50%;
-        min-width: 250px;
-        padding: 8px 10px;
-        font-size: 16px;
+      .input-group {
+        width: 60%;
+        min-width: 300px;
+        display: flex;
+        flex-direction: column;
+      }
+      label {
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input[type="text"],
+      input[type="date"],
+      select {
+        padding: 10px;
         border: 1px solid #ccc;
         border-radius: 6px;
+        width: 100%;
         box-sizing: border-box;
+        transition: border 0.3s;
       }
 
-      /* Contenedor principal de colecciones (AJUSTE CLAVE AQUÍ) */
+      /* Estilos de Error */
+      .input-error {
+        border: 2px solid #f44336 !important;
+        background-color: #ffebee;
+      }
+
       #contenedor-colecciones {
         display: flex;
-        flex-direction: column; /* Esto apila los elementos verticalmente */
+        flex-direction: column;
         gap: 20px;
-        align-items: center; /* Centra los paneles apilados */
-        padding: 20px 0;
-        width: 100%; /* Aseguramos que ocupe todo el ancho */
+        width: 100%;
+        margin-top: 20px;
       }
-
-      /* Panel individual de colección */
       .coleccion-panel {
-        background: #f9f9f9;
+        background: #fafafa;
         border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 10px;
-        /* Hacemos que ocupe el 90% del ancho del contenedor */
-        width: 90%; 
-        max-width: 600px; /* Limitamos el ancho para que no sea demasiado largo */
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        border-radius: 10px;
+        padding: 15px;
       }
-      
       .coleccion-panel h3 {
         background-color: #3d3d3d;
         color: white;
-        padding: 8px;
-        margin: -10px -10px 10px -10px;
+        padding: 10px;
+        margin: -15px -15px 15px -15px;
         border-radius: 8px 8px 0 0;
         text-align: center;
       }
 
       .btn-guardar {
         margin-top: 20px;
-        width: 50%;
-        padding: 10px 20px;
-        background: orange;
+        width: 60%;
+        padding: 12px;
+        background: #2196f3;
         border: none;
         color: white;
         font-size: 16px;
         border-radius: 6px;
         cursor: pointer;
-      }
-
-      .btn-guardar:hover {
-        background: darkorange;
+        font-weight: bold;
       }
 
       .fila {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 6px;
+        padding: 8px;
         border-bottom: 1px solid #eee;
       }
-
-      .celda {
-        flex: 1;
-        text-align: left;
-        font-size: 15px;
-      }
-
-      .cantidad-input {
-        width: 80px;
-        padding: 4px 6px;
-        font-size: 15px;
-        text-align: center;
-      }
-
       .fila.activo {
-        background-color: #eeeeee;
+        background-color: #afafaf;
+      }
+      .cantidad-input {
+        width: 90px;
+        padding: 6px;
+        text-align: center;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+      }
+
+      /* Mensajes de notificación arriba */
+      #mensaje-confirmacion {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: #4caf50;
+        color: white;
+        padding: 15px 25px;
+        border-radius: 5px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        display: none;
+        z-index: 4000;
+        font-weight: bold;
+      }
+      #mensaje-error-validacion {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #f44336;
+        color: white;
+        padding: 15px 25px;
+        border-radius: 5px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        display: none;
+        z-index: 4001;
+        font-weight: bold;
+      }
+
+      /* Modales */
+      .modal-overlay-custom {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        justify-content: center;
+        align-items: center;
+        z-index: 3000;
+      }
+      .modal-content-custom {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 520px;
+      }
+      .modal-buttons-custom {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .btn-accept {
+        background: #4caf50;
+        color: #fff;
+        padding: 10px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      .btn-cancel {
+        background: #f44336;
+        color: #fff;
+        padding: 10px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
       }
     </style>
   </head>
   <body>
     <header class="header">
-      <div class="menu">
-        <a href="index.html" class="logo">
-          <img src="images/Grido_logo.png" alt="Logo Heladería" />
-        </a>
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          padding: 12px;
+        "
+      >
+        <a href="index.html" class="logo"
+          ><img src="images/Grido_logo.png" alt="Logo"
+        /></a>
         <h1>Modificar Pedido</h1>
       </div>
     </header>
 
     <main>
       <div class="panel">
-        <h2 id="pedido-id-display">Cargando pedido...</h2>
+        <h2 id="pedido-id-display">Cargando datos del pedido...</h2>
         <form id="pedido-form">
-          <label>Día</label>
-          <select id="dia" disabled></select> 
-          <label>Número de día</label>
-          <select id="numeroDia" disabled></select> 
-          <label>Categoría</label>
-          <select id="categoria"></select>
-
-          <label>Recorrido</label>
-          <select id="recorrido"></select>
-
-          <div id="contenedor-colecciones">
-            <p style="text-align: center; width: 100%;">Cargando productos de stock...</p>
+          <div class="input-group">
+            <label>Fecha Entrega</label
+            ><input type="date" id="fechaEntrega" required />
           </div>
+          <div class="input-group">
+            <label>Categoría</label
+            ><select id="categoria"></select>
+          </div>
+          <div class="input-group">
+            <label>Localidad</label
+            ><input type="text" id="localidad" required />
+          </div>
+          <div class="input-group">
+            <label>Vendedor</label
+            ><select id="vendedor" required></select>
+          </div>
+
+          <div id="contenedor-colecciones"></div>
           <button type="submit" class="btn-guardar">Actualizar Pedido</button>
         </form>
       </div>
     </main>
 
-    <script type="module" src="firebase.js"></script>
-    <script type="module" src="modificacion.js"></script>
+    <div id="mensaje-confirmacion">Pedido Actualizado con Éxito! 🎉</div>
+    <div id="mensaje-error-validacion">⚠️ Seleccione Categoría y Vendedor</div>
+
+    <div id="stock-advertencia-modal" class="modal-overlay-custom">
+      <div class="modal-content-custom">
+        <h3>⚠️ Stock Insuficiente</h3>
+        <p>Los siguientes productos quedarán en negativo:</p>
+        <div
+          id="stock-detalle"
+          style="
+            max-height: 200px;
+            overflow: auto;
+            margin-top: 8px;
+            border: 1px solid #eee;
+            padding: 8px;
+            border-radius: 6px;
+          "
+        ></div>
+        <div class="modal-buttons-custom">
+          <button id="btn-forzar-stock" class="btn-accept">
+            Forzar actualización
+          </button>
+          <button id="btn-cancelar-stock" class="btn-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
     <nav class="footer-nav">
       <a href="index.html">Inicio</a>
       <a href="pedidos.html">Pedidos</a>
       <a href="stock.html">Stock</a>
     </nav>
+
+    <script type="module" src="firebase.js"></script>
+    <script type="module" src="modificacion.js"></script>
   </body>
 </html>
