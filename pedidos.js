@@ -927,12 +927,31 @@ function crearElementoPedido(pedidoDoc, data) {
   header.style.justifyContent = "space-between";
   header.style.alignItems = "center";
 
-  const title = document.createElement("strong");
-  title.textContent = `${data.categoria} - ${pedidoDoc.id}`;
+  // --- CAMBIO AQUÍ: Formateamos el encabezado con Cliente, Localidad y Fecha ---
+  const title = document.createElement("div"); // Cambiado a div para manejar mejor el layout
+  title.style.display = "flex";
+  title.style.flexDirection = "column"; // Nombre arriba, datos abajo
+
+  const nombreCliente = data.Nombre || "Sin Nombre";
+  const localidad = data.Localidad || "Sin Localidad";
+  const fechaEntrega = data.fechaEntrega || "Sin Fecha";
+
+  title.innerHTML = `
+    <strong style="font-size: 1.1em;">${nombreCliente}</strong>
+    <span style="font-size: 0.85em; color: #555;">
+      📍 ${localidad} | 📅 ${fechaEntrega}
+    </span>
+  `;
   header.appendChild(title);
 
   const toggleBtn = document.createElement("button");
   toggleBtn.textContent = pedidoAbiertoId === pedidoDoc.id ? "▲" : "▼";
+  toggleBtn.style.padding = "8px 12px"; // Un poco más de área de clic
+  toggleBtn.style.backgroundColor = "#007bff";
+  toggleBtn.style.color = "white";
+  toggleBtn.style.border = "none";
+  toggleBtn.style.borderRadius = "4px";
+  
   toggleBtn.addEventListener("click", () => {
     pedidoAbiertoId = pedidoAbiertoId === pedidoDoc.id ? null : pedidoDoc.id;
     renderPedidos();
@@ -944,16 +963,14 @@ function crearElementoPedido(pedidoDoc, data) {
     const productosPedidos = data.productos || {};
     const articulosKeys = Object.keys(productosPedidos);
     const detallesContainer = document.createElement("div");
-    detallesContainer.style.marginTop = "12px"; // Función asíncrona inmediata para cargar stock y renderizar detalles
+    detallesContainer.style.marginTop = "12px";
 
     (async () => {
-      // No necesitamos cargar todo el stock aquí, solo necesitamos los detalles del pedido
-      // El mapeo de colecciones y productos ya está en `productosPedidos`
       const grupos = {};
-      coleccionesStock.forEach((col) => (grupos[col] = [])); // 2. Clasificar los productos pedidos por su colección
+      coleccionesStock.forEach((col) => (grupos[col] = []));
 
       articulosKeys.forEach((key) => {
-        const detalle = productosPedidos[key]; // El key es Coleccion::Producto, pero el detalle ya tiene coleccion y producto
+        const detalle = productosPedidos[key];
         if (detalle && detalle.coleccion && detalle.producto) {
           const cantidad = detalle.cantidad || 0;
           if (cantidad > 0 && grupos.hasOwnProperty(detalle.coleccion)) {
@@ -972,10 +989,14 @@ function crearElementoPedido(pedidoDoc, data) {
         const titulo = nombresColecciones[nombreColeccion] || nombreColeccion;
         const groupDiv = document.createElement("div");
         groupDiv.style.textAlign = "center";
+        groupDiv.style.marginBottom = "10px";
+        
         const h3 = document.createElement("h3");
         h3.textContent = titulo;
-        h3.style.backgroundColor = "#ddd";
-        h3.style.padding = "4px";
+        h3.style.backgroundColor = "#eee";
+        h3.style.padding = "6px";
+        h3.style.borderRadius = "4px";
+        h3.style.fontSize = "16px";
         groupDiv.appendChild(h3);
 
         items.forEach((item) => {
@@ -987,43 +1008,34 @@ function crearElementoPedido(pedidoDoc, data) {
         });
 
         detallesContainer.appendChild(groupDiv);
-      } // Mostrar todos los grupos de stock
+      }
 
-      coleccionesStock.forEach((col) => buildGrupo(col, grupos[col])); // --- Botones de acción ---
+      coleccionesStock.forEach((col) => buildGrupo(col, grupos[col]));
+
       const botonesDiv = document.createElement("div");
       botonesDiv.style.display = "flex";
       botonesDiv.style.justifyContent = "space-around";
+      botonesDiv.style.flexWrap = "wrap"; // Por si la pantalla es chica
       botonesDiv.style.gap = "12px";
-      botonesDiv.style.marginTop = "12px";
+      botonesDiv.style.marginTop = "16px";
+
+      const btnStyle = "padding: 10px 14px; border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: bold;";
 
       const btnBorrar = document.createElement("button");
       btnBorrar.textContent = "❌ Borrar";
-      btnBorrar.style.backgroundColor = "red";
-      btnBorrar.style.color = "white";
-      btnBorrar.style.padding = "8px 12px";
-      btnBorrar.style.border = "none";
-      btnBorrar.style.borderRadius = "4px";
-      btnBorrar.onclick = () =>
-        borrarPedidoYActualizarStock(data, pedidoDoc.id);
+      btnBorrar.style.cssText = btnStyle + "background-color: #f44336;";
+      btnBorrar.onclick = () => borrarPedidoYActualizarStock(data, pedidoDoc.id);
       botonesDiv.appendChild(btnBorrar);
 
       const btnEntregado = document.createElement("button");
       btnEntregado.textContent = "✅ Entregado";
-      btnEntregado.style.backgroundColor = "green";
-      btnEntregado.style.color = "white";
-      btnEntregado.style.padding = "8px 12px";
-      btnEntregado.style.border = "none";
-      btnEntregado.style.borderRadius = "4px";
+      btnEntregado.style.cssText = btnStyle + "background-color: #4CAF50;";
       btnEntregado.onclick = () => borrarPedidoSinStock(pedidoDoc.id);
       botonesDiv.appendChild(btnEntregado);
 
       const btnEditar = document.createElement("button");
       btnEditar.textContent = "✏️ Editar";
-      btnEditar.style.backgroundColor = "orange";
-      btnEditar.style.color = "white";
-      btnEditar.style.padding = "8px 12px";
-      btnEditar.style.border = "none";
-      btnEditar.style.borderRadius = "4px";
+      btnEditar.style.cssText = btnStyle + "background-color: #ff9800;";
       btnEditar.onclick = () => {
         window.location.href = `modificacion.html?id=${pedidoDoc.id}`;
       };
@@ -1031,11 +1043,7 @@ function crearElementoPedido(pedidoDoc, data) {
 
       const btnPDF = document.createElement("button");
       btnPDF.textContent = "📄 PDF";
-      btnPDF.style.backgroundColor = "blue";
-      btnPDF.style.color = "white";
-      btnPDF.style.padding = "8px 12px";
-      btnPDF.style.border = "none";
-      btnPDF.style.borderRadius = "4px";
+      btnPDF.style.cssText = btnStyle + "background-color: #2196F3;";
       btnPDF.onclick = () => window.generarPDF(pedidoDoc.id);
       botonesDiv.appendChild(btnPDF);
 
@@ -1053,8 +1061,8 @@ function crearElementoPedido(pedidoDoc, data) {
     const resumen = document.createElement("div");
     resumen.style.textAlign = "center";
     resumen.style.fontSize = "16px";
-    resumen.style.marginTop = "6px";
-
+    resumen.style.marginTop = "8px";
+    resumen.style.color = "#666";
     resumen.textContent = `${totalUnidades} artículos`;
     container.appendChild(resumen);
   }
