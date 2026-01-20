@@ -94,7 +94,7 @@ function generarInputs(container, grupos, preciosActuales) {
 function formatoNombreGrupo(key) {
   switch (key) {
     case "carnicos":
-      return "Stock Cárnicos";
+      return "Stock Productos Extras";
     case "frigorbalde":
       return "Stock Frigor Balde";
     case "frigorimpulsivos":

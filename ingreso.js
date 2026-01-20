@@ -35,7 +35,7 @@ const colecciones = [
 ];
 
 const nombresColecciones = {
-  StockCarnicos: "Cárnicos",
+  StockCarnicos: "Productos Extras",
   StockFrigorBalde: "Frigor Baldes",
   StockFrigorImpulsivos: "Frigor Impulsivos",
   StockFrigorPostres: "Frigor Postres",

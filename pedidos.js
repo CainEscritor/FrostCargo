@@ -1,4 +1,5 @@
 import { db } from "./firebase.js";
+
 import {
   collection,
   doc,
@@ -10,6 +11,7 @@ import {
   deleteDoc,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
 
 // --- VARIABLES GLOBALES ---
 let pedidosGlobales = []; // Copia local para filtrado rápido sin costo de lectura
@@ -142,7 +144,7 @@ const coleccionesStock = [
 ];
 
 const nombresColecciones = {
-  StockCarnicos: "Cárnicos",
+  StockCarnicos: "Productos Extras",
   StockFrigorBalde: "Frigor Baldes",
   StockFrigorImpulsivos: "Frigor Impulsivos",
   StockFrigorPostres: "Frigor Postres",
@@ -387,6 +389,21 @@ async function guardarVenta(pedidoId, pedidoData) {
   });
 }
 
+const EMPRESAS = {
+  FROSTCARGO: {
+    nombre: "FROST CARGO SAS",
+    cuit: "30-71857453-2",
+    inicioAct: "01/05/2010",
+    logo: "images/Grido_logo.png" // O el logo correspondiente
+  },
+  BAEZA: {
+    nombre: "DISTRIBUIDORA BAEZA S.R.L.",
+    cuit: "30-70915630-2",
+    inicioAct: "30/06/2004",
+    logo: "images/Grido_logo.png" // Cambiar si Baeza usa otro logo
+  }
+};
+
 // -------------------------------------------------------------------
 // ## Generar PDF (Remito Individual)
 // -------------------------------------------------------------------
@@ -505,6 +522,17 @@ function mostrarModalRemito({
 
     modalContent.innerHTML = `
       <h2>Opciones de Remito</h2>
+
+      <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9;">
+        <label style="font-weight: bold; display: block; margin-bottom: 8px;">Seleccionar Empresa:</label>
+        <label style="margin-right: 15px; cursor:pointer;">
+          <input type="radio" name="empresa-select" value="FROSTCARGO" checked> Frost Cargo
+        </label>
+        <label style="cursor:pointer;">
+          <input type="radio" name="empresa-select" value="BAEZA"> Baeza
+        </label>
+      </div>
+
       <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
         <label style="display: block; margin-bottom: 8px;">
           <input type="checkbox" id="ocultar-precios-check" /> 
@@ -550,6 +578,8 @@ function mostrarModalRemito({
 
   const generarBtn = document.getElementById("generar-remito-final");
   generarBtn.onclick = () => {
+    const empresaSeleccionada = document.querySelector('input[name="empresa-select"]:checked').value;
+    const empresaData = EMPRESAS[empresaSeleccionada];
     const ocultarPrecios = document.getElementById(
       "ocultar-precios-check"
     ).checked;
@@ -570,10 +600,11 @@ function mostrarModalRemito({
       grupos,
       productosPedidos,
       ocultarPrecios,
-      descuentoPorcentaje, // porcentaje (no decimal)
-      descuentoEfectivo, // monto en pesos
+      descuentoPorcentaje,
+      descuentoEfectivo,
       observaciones,
       idsData,
+      empresaData // <--- Pasamos los datos de la empresa elegida
     });
   };
 }
@@ -597,6 +628,7 @@ async function drawRemito(
     observaciones,
     flete = 0,
     idsData,
+    empresaData // <--- Recibimos el objeto de la empresa
   }
 ) {
   const nombreCliente = data.Nombre || "-";
@@ -614,7 +646,7 @@ async function drawRemito(
 
   docPDF.setFont("helvetica", "normal");
   docPDF.setFontSize(10);
-  docPDF.text("FROST CARGO SAS", marginLeft, y);
+  docPDF.text(empresaData.nombre, marginLeft, y); // DINÁMICO
   y += 5;
   docPDF.text("Benjamin Franklin 1557", marginLeft, y);
   y += 5;
@@ -645,16 +677,16 @@ async function drawRemito(
     y,
     { align: "right" }
   );
-  y += 7;
+  y = 35; // Ajustar según necesites
   docPDF.setFontSize(8);
   docPDF.text(
-    "CUIT: 30-71857453-2   Ing. Brutos: 280-703834",
+    `CUIT: ${empresaData.cuit}   Ing. Brutos: 280-703834`, // DINÁMICO
     pageWidth - 10,
     y,
     { align: "right" }
   );
   y += 5;
-  docPDF.text("Fecha de Inicio Act.: 01/05/2010", pageWidth - 10, y, {
+  docPDF.text(`Fecha de Inicio Act.: ${empresaData.inicioAct}`, pageWidth - 10, y, { // DINÁMICO
     align: "right",
   });
   y += 3;
@@ -848,10 +880,11 @@ async function _generarRemitoFinal({
   grupos,
   productosPedidos,
   ocultarPrecios,
-  descuentoPorcentaje = 0,
-  descuentoEfectivo = 0,
+  descuentoPorcentaje,
+  descuentoEfectivo,
   observaciones,
   idsData,
+  empresaData // Recibido desde el modal
 }) {
   const { jsPDF } = window.jspdf;
   const docPDF = new jsPDF({ format: "legal", unit: "mm" });
@@ -866,40 +899,20 @@ async function _generarRemitoFinal({
   const logoImg = await loadImage("images/Grido_logo.png");
 
   // 1. Generar la copia ORIGINAL
-  await drawRemito(docPDF, logoImg, "ORIGINAL", {
-    pedidoId,
-    data,
-    preciosData,
-    grupos,
-    productosPedidos,
-    ocultarPrecios,
-    descuentoPorcentaje,
-    descuentoEfectivo,
-    observaciones,
-    // si querés seguir usando 'flete' (monto), podés pasarlo aquí también:
-    flete: 0,
-    idsData,
-  });
+  const options = {
+    pedidoId, data, preciosData, grupos, productosPedidos, 
+    ocultarPrecios, descuentoPorcentaje, descuentoEfectivo, 
+    observaciones, idsData, empresaData, flete: 0
+  };
 
-  // 2. Agregar una nueva página para el DUPLICADO
+  // ORIGINAL
+  await drawRemito(docPDF, logoImg, "ORIGINAL", options);
+
+  // DUPLICADO
   docPDF.addPage("legal", "portrait");
+  await drawRemito(docPDF, logoImg, "DUPLICADO", options);
 
-  // 3. Generar la copia DUPLICADO
-  await drawRemito(docPDF, logoImg, "DUPLICADO", {
-    pedidoId,
-    data,
-    preciosData,
-    grupos,
-    productosPedidos,
-    ocultarPrecios,
-    descuentoPorcentaje,
-    descuentoEfectivo,
-    observaciones,
-    flete: 0,
-    idsData,
-  });
-
-  docPDF.save(`${pedidoId}.pdf`);
+  docPDF.save(`${empresaData.nombre}_${pedidoId}.pdf`);
 }
 
 function hayFiltrosActivos() {
