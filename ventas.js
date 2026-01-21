@@ -118,7 +118,7 @@ function renderizarTabla(lista) {
     const productosEntradas = Object.entries(v.productos || {});
     const totalUnidades = productosEntradas.reduce(
       (acc, [_, cant]) => acc + (Number(cant) || 0),
-      0
+      0,
     );
 
     const valorVenta = Number(v.total || 0);
@@ -157,7 +157,7 @@ function renderizarTabla(lista) {
     <td colspan="6" style="text-align: right; padding: 12px;">TOTAL VENTAS:</td>
     <td colspan="2" style="color: #c50014;">$ ${sumaTotalGlobal.toLocaleString(
       "es-AR",
-      { minimumFractionDigits: 2 }
+      { minimumFractionDigits: 2 },
     )}</td>
   `;
   tbody.appendChild(filaTotal);
@@ -220,31 +220,62 @@ function exportarPDF() {
 function exportarExcel() {
   if (!ventasFiltradas.length) return alert("No hay datos para exportar");
 
-  const data = ventasFiltradas.map((v) => ({
-    Cliente: v.cliente,
-    Localidad: v.Localidad,
-    Dirección: v.direccion,
-    Fecha: v.fechaEntrega,
-    Remito: v.NumeroRemito,
-    Tipo: v.tipoDocumento,
-    Total: v.total,
-  }));
+  const filasExcel = [];
 
-  // Añadir fila de total al Excel
-  data.push({
+  ventasFiltradas.forEach((v) => {
+    const productosEntradas = Object.entries(v.productos || {});
+
+    if (productosEntradas.length === 0) {
+      // Si por alguna razón no hay productos, agregamos la fila con los datos básicos
+      filasExcel.push({
+        Cliente: v.cliente || "-",
+        Localidad: v.Localidad || "-",
+        Dirección: v.direccion || "-",
+        Fecha: v.fechaEntrega || "-",
+        Remito: v.NumeroRemito || "-",
+        Tipo: v.tipoDocumento || "-",
+        Producto: "Sin productos",
+        Cantidad: 0,
+        "Precio Total Venta": v.total || 0,
+      });
+    } else {
+      // Agregamos una fila por cada producto del pedido
+      productosEntradas.forEach(([nombreProd, cantidad], index) => {
+        filasExcel.push({
+          Cliente: index === 0 ? v.cliente : "", // Solo mostramos el nombre en la primera fila del pedido para que sea más limpio
+          Localidad: index === 0 ? v.Localidad : "",
+          Dirección: index === 0 ? v.direccion : "",
+          Fecha: index === 0 ? v.fechaEntrega : "",
+          Remito: index === 0 ? v.NumeroRemito : "",
+          Tipo: index === 0 ? v.tipoDocumento : "",
+          Producto: nombreProd,
+          Cantidad: cantidad,
+          "Precio Total Venta": index === 0 ? v.total : "", // El total de la venta solo en la primera fila
+        });
+      });
+    }
+  });
+
+  // Añadir fila de total general al final
+  filasExcel.push({
     Cliente: "TOTAL GENERAL",
     Localidad: "",
     Dirección: "",
     Fecha: "",
     Remito: "",
     Tipo: "",
-    Total: sumaTotalGlobal,
+    Producto: "",
+    Cantidad: "",
+    "Precio Total Venta": sumaTotalGlobal,
   });
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const ws = XLSX.utils.json_to_sheet(filasExcel);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Ventas");
-  XLSX.writeFile(wb, "Reporte_Ventas.xlsx");
+  XLSX.utils.book_append_sheet(wb, ws, "Ventas Detalladas");
+  XLSX.writeFile(
+    wb,
+    `Reporte_Ventas_Detalle_${new Date().toISOString().split("T")[0]}.xlsx`,
+  );
 }
 
 // 🔹 LISTENERS

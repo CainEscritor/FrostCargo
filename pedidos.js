@@ -12,7 +12,6 @@ import {
   setDoc,
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-
 // --- VARIABLES GLOBALES ---
 let pedidosGlobales = []; // Copia local para filtrado rápido sin costo de lectura
 
@@ -202,7 +201,7 @@ vendedorSelect.addEventListener("change", () => {
 async function borrarPedidoYActualizarStock(pedidoData, docId) {
   if (
     !confirm(
-      "¿Seguro que querés borrar el pedido? Todos los artículos volverán al stock."
+      "¿Seguro que querés borrar el pedido? Todos los artículos volverán al stock.",
     )
   )
     return;
@@ -210,7 +209,7 @@ async function borrarPedidoYActualizarStock(pedidoData, docId) {
   try {
     // 1. Pre-cargar el stock actual de TODAS las colecciones
     const stockSnaps = await Promise.all(
-      coleccionesStock.map((col) => getDoc(doc(db, col, "Stock")))
+      coleccionesStock.map((col) => getDoc(doc(db, col, "Stock"))),
     );
     const stocksData = {};
     stockSnaps.forEach((snap, index) => {
@@ -291,7 +290,7 @@ async function guardarHistorialCliente(pedidoData) {
 
     const fecha = new Date();
     const periodo = `${fecha.getFullYear()}-${String(
-      fecha.getMonth() + 1
+      fecha.getMonth() + 1,
     ).padStart(2, "0")}`;
 
     const clienteRef = doc(db, "Clientes", nombreCliente);
@@ -352,7 +351,7 @@ async function guardarVenta(pedidoId, pedidoData) {
   }
 
   const nombreColeccionPrecios = coleccionPreciosParaCategoria(
-    pedidoData.categoria
+    pedidoData.categoria,
   );
 
   // 📥 Leer precios reales
@@ -394,14 +393,18 @@ const EMPRESAS = {
     nombre: "FROST CARGO SAS",
     cuit: "30-71857453-2",
     inicioAct: "01/05/2010",
-    logo: "images/Grido_logo.png" // O el logo correspondiente
+    logo: "images/Grido_logo.png",
+    logoAncho: 50, // Ancho estándar
+    logoAlto: 20,
   },
   BAEZA: {
     nombre: "DISTRIBUIDORA BAEZA S.R.L.",
     cuit: "30-70915630-2",
     inicioAct: "30/06/2004",
-    logo: "images/Grido_logo.png" // Cambiar si Baeza usa otro logo
-  }
+    logo: "images/baeza.jpg",
+    logoAncho: 30, // <-- Aquí lo hacemos más angosto
+    logoAlto: 20,
+  },
 };
 
 // -------------------------------------------------------------------
@@ -445,7 +448,7 @@ window.generarPDF = async function (pedidoId) {
     }
 
     const nombreColeccionPrecios = coleccionPreciosParaCategoria(
-      data.categoria
+      data.categoria,
     ); // 1. Obtener referencias y datos necesarios para el PDF
 
     const preciosSnap = await getDoc(doc(db, "Precios", "Precio"));
@@ -578,10 +581,12 @@ function mostrarModalRemito({
 
   const generarBtn = document.getElementById("generar-remito-final");
   generarBtn.onclick = () => {
-    const empresaSeleccionada = document.querySelector('input[name="empresa-select"]:checked').value;
+    const empresaSeleccionada = document.querySelector(
+      'input[name="empresa-select"]:checked',
+    ).value;
     const empresaData = EMPRESAS[empresaSeleccionada];
     const ocultarPrecios = document.getElementById(
-      "ocultar-precios-check"
+      "ocultar-precios-check",
     ).checked;
     const descuentoPorcentaje =
       parseFloat(document.getElementById("porcentaje-input").value) || 0; // Ej: 10
@@ -604,7 +609,7 @@ function mostrarModalRemito({
       descuentoEfectivo,
       observaciones,
       idsData,
-      empresaData // <--- Pasamos los datos de la empresa elegida
+      empresaData, // <--- Pasamos los datos de la empresa elegida
     });
   };
 }
@@ -628,8 +633,8 @@ async function drawRemito(
     observaciones,
     flete = 0,
     idsData,
-    empresaData // <--- Recibimos el objeto de la empresa
-  }
+    empresaData, // <--- Recibimos el objeto de la empresa
+  },
 ) {
   const nombreCliente = data.Nombre || "-";
   const direccion = data.Direccion || "-";
@@ -641,7 +646,19 @@ async function drawRemito(
   let y = 10;
 
   // --- ENCABEZADO FIJO ---
-  docPDF.addImage(logoImg, "PNG", marginLeft, y, 50, 20);
+  if (logoImg) {
+    // Si la empresa tiene ancho definido lo usa, sino usa 50 (estándar)
+    const ancho = empresaData.logoAncho || 50;
+    // Si la empresa tiene alto definido lo usa, sino usa 20 (estándar)
+    const alto = empresaData.logoAlto || 20;
+
+    docPDF.addImage(logoImg, "JPEG", marginLeft, y, ancho, alto);
+  } else {
+    // Si no hay logo, ponemos el nombre de la empresa como texto
+    docPDF.setFont("helvetica", "bold");
+    docPDF.setFontSize(12);
+    docPDF.text(empresaData.nombre, marginLeft, y + 10);
+  }
   y += 25;
 
   docPDF.setFont("helvetica", "normal");
@@ -675,20 +692,26 @@ async function drawRemito(
     `N° ${numeroRemito.toString().padStart(8, "0")}`,
     pageWidth - 10,
     y,
-    { align: "right" }
+    { align: "right" },
   );
-  y = 35; // Ajustar según necesites
+  y = 44; // Ajustar según necesites
   docPDF.setFontSize(8);
   docPDF.text(
     `CUIT: ${empresaData.cuit}   Ing. Brutos: 280-703834`, // DINÁMICO
     pageWidth - 10,
     y,
-    { align: "right" }
+    { align: "right" },
   );
   y += 5;
-  docPDF.text(`Fecha de Inicio Act.: ${empresaData.inicioAct}`, pageWidth - 10, y, { // DINÁMICO
-    align: "right",
-  });
+  docPDF.text(
+    `Fecha de Inicio Act.: ${empresaData.inicioAct}`,
+    pageWidth - 10,
+    y,
+    {
+      // DINÁMICO
+      align: "right",
+    },
+  );
   y += 3;
 
   // Línea separadora
@@ -776,7 +799,7 @@ async function drawRemito(
   // Si ocultamos precios, mostramos como antes (total de unidades)
   const totalProductos = Object.values(productosPedidos).reduce(
     (sum, item) => sum + (item.cantidad || 0),
-    0
+    0,
   );
 
   if (!ocultarPrecios) {
@@ -794,11 +817,11 @@ async function drawRemito(
       descuentoPorcMonto = subtotal * (descuentoPorcentaje / 100);
       docPDF.text(
         `Descuento (${descuentoPorcentaje}%): - $${descuentoPorcMonto.toFixed(
-          2
+          2,
         )}`,
         pageWidth - 10,
         y,
-        { align: "right" }
+        { align: "right" },
       );
       y += 6;
     }
@@ -811,7 +834,7 @@ async function drawRemito(
         `Descuento Efectivo: - $${descuentoEfectMonto.toFixed(2)}`,
         pageWidth - 10,
         y,
-        { align: "right" }
+        { align: "right" },
       );
       y += 6;
     }
@@ -843,7 +866,7 @@ async function drawRemito(
       `TOTAL FINAL DE UNIDADES: ${totalProductos}`,
       pageWidth - 10,
       y,
-      { align: "right" }
+      { align: "right" },
     );
     y += 10;
   }
@@ -884,35 +907,62 @@ async function _generarRemitoFinal({
   descuentoEfectivo,
   observaciones,
   idsData,
-  empresaData // Recibido desde el modal
+  empresaData,
 }) {
-  const { jsPDF } = window.jspdf;
-  const docPDF = new jsPDF({ format: "legal", unit: "mm" });
+  try {
+    const { jsPDF } = window.jspdf;
+    const docPDF = new jsPDF({ format: "legal", unit: "mm" });
 
-  const loadImage = (src) =>
-    new Promise((resolve, reject) => {
-      const img = new Image();
-      img.src = src;
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-    });
-  const logoImg = await loadImage("images/Grido_logo.png");
+    const loadImage = (src) =>
+      new Promise((resolve) => {
+        const img = new Image();
+        img.src = src;
+        img.onload = () => resolve(img);
+        img.onerror = () => {
+          console.error("No se pudo cargar el logo en: " + src);
+          resolve(null); // Resolvemos con null para que el código siga
+        };
+      });
 
-  // 1. Generar la copia ORIGINAL
-  const options = {
-    pedidoId, data, preciosData, grupos, productosPedidos, 
-    ocultarPrecios, descuentoPorcentaje, descuentoEfectivo, 
-    observaciones, idsData, empresaData, flete: 0
-  };
+    console.log("🧠 Empresa seleccionada:", empresaData);
 
-  // ORIGINAL
-  await drawRemito(docPDF, logoImg, "ORIGINAL", options);
+    // Intentamos cargar el logo de la empresa elegida
+    let logoImg = await loadImage(empresaData.logo);
 
-  // DUPLICADO
-  docPDF.addPage("legal", "portrait");
-  await drawRemito(docPDF, logoImg, "DUPLICADO", options);
+    // Si no cargó (null), intentamos cargar el logo por defecto (Grido)
+    if (!logoImg) {
+      console.warn(
+        `⚠️ No se encontró el logo en ${empresaData.logo}. Usando logo por defecto.`,
+      );
+      logoImg = await loadImage("images/Grido_logo.png");
+    }
 
-  docPDF.save(`${empresaData.nombre}_${pedidoId}.pdf`);
+    const options = {
+      pedidoId,
+      data,
+      preciosData,
+      grupos,
+      productosPedidos,
+      ocultarPrecios,
+      descuentoPorcentaje,
+      descuentoEfectivo,
+      observaciones,
+      idsData,
+      empresaData,
+      flete: 0,
+    };
+
+    // Si después de todo no hay logo (archivo de Grido también falta),
+    // pasamos una imagen vacía o manejamos el error para que al menos imprima el texto
+    await drawRemito(docPDF, logoImg, "ORIGINAL", options);
+    docPDF.addPage("legal", "portrait");
+    await drawRemito(docPDF, logoImg, "DUPLICADO", options);
+
+    docPDF.save(`${empresaData.nombre}_${pedidoId}.pdf`);
+  } catch (err) {
+    console.error("❌ ERROR CRÍTICO GENERANDO PDF:", err);
+    alert("❌ Error al generar el PDF. Revisa la consola para más detalles.");
+  }
 }
 
 function hayFiltrosActivos() {
@@ -964,7 +1014,7 @@ function crearElementoPedido(pedidoDoc, data) {
   toggleBtn.style.color = "white";
   toggleBtn.style.border = "none";
   toggleBtn.style.borderRadius = "4px";
-  
+
   toggleBtn.addEventListener("click", () => {
     pedidoAbiertoId = pedidoAbiertoId === pedidoDoc.id ? null : pedidoDoc.id;
     renderPedidos();
@@ -1003,7 +1053,7 @@ function crearElementoPedido(pedidoDoc, data) {
         const groupDiv = document.createElement("div");
         groupDiv.style.textAlign = "center";
         groupDiv.style.marginBottom = "10px";
-        
+
         const h3 = document.createElement("h3");
         h3.textContent = titulo;
         h3.style.backgroundColor = "#eee";
@@ -1032,12 +1082,14 @@ function crearElementoPedido(pedidoDoc, data) {
       botonesDiv.style.gap = "12px";
       botonesDiv.style.marginTop = "16px";
 
-      const btnStyle = "padding: 10px 14px; border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: bold;";
+      const btnStyle =
+        "padding: 10px 14px; border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: bold;";
 
       const btnBorrar = document.createElement("button");
       btnBorrar.textContent = "❌ Borrar";
       btnBorrar.style.cssText = btnStyle + "background-color: #f44336;";
-      btnBorrar.onclick = () => borrarPedidoYActualizarStock(data, pedidoDoc.id);
+      btnBorrar.onclick = () =>
+        borrarPedidoYActualizarStock(data, pedidoDoc.id);
       botonesDiv.appendChild(btnBorrar);
 
       const btnEntregado = document.createElement("button");
@@ -1118,7 +1170,7 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
           articulosAcumulados[key].cantidad += cantidad;
           // Guardamos el cliente y cuánto pidió de este producto específico
           articulosAcumulados[key].clientes.push(
-            `${nombreCliente} (${cantidad})`
+            `${nombreCliente} (${cantidad})`,
           );
         }
       }
@@ -1127,7 +1179,7 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
 
   if (Object.keys(articulosAcumulados).length === 0) {
     alert(
-      "No se encontraron artículos con las cantidades en los pedidos filtrados."
+      "No se encontraron artículos con las cantidades en los pedidos filtrados.",
     );
     return;
   }
@@ -1166,7 +1218,7 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
       logoImg,
       gruposAcumulados,
       pedidosFiltradosDocs.length,
-      idsData
+      idsData,
     );
 
     const nombreArchivo = filtroFecha
@@ -1189,7 +1241,7 @@ async function drawResumenPDF(
   logoImg,
   gruposAcumulados,
   numPedidos,
-  idsData
+  idsData,
 ) {
   const marginLeft = 10;
   const pageWidth = docPDF.internal.pageSize.getWidth();
@@ -1221,7 +1273,7 @@ async function drawResumenPDF(
       filtrosAplicados.length > 0 ? filtrosAplicados.join(" | ") : "Ninguno"
     }`,
     marginLeft,
-    y
+    y,
   );
   y += 8;
 
@@ -1282,7 +1334,7 @@ async function drawResumenPDF(
       docPDF.text(
         item.producto.toUpperCase(),
         18 + docPDF.getTextWidth(` - ${idProducto} - `),
-        y
+        y,
       );
 
       y += 5;
@@ -1296,7 +1348,7 @@ async function drawResumenPDF(
       const listaClientesHorizontal = item.clientes.join(" - ");
       const lineasTexto = docPDF.splitTextToSize(
         listaClientesHorizontal,
-        pageWidth - 55
+        pageWidth - 55,
       );
 
       docPDF.text(lineasTexto, 45, y);
@@ -1322,6 +1374,6 @@ async function drawResumenPDF(
     `TOTAL GENERAL DE UNIDADES: ${totalGeneralUnidades}`,
     pageWidth - 10,
     y,
-    { align: "right" }
+    { align: "right" },
   );
 }
