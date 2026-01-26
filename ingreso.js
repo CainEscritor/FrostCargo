@@ -102,31 +102,40 @@ fillSelect(vendedorSelect, vendedores);
 
 // --- Búsqueda de Clientes ---
 nombreInput.addEventListener("input", (e) => {
-  const texto = e.target.value.trim();
+  const textoBusqueda = e.target.value.toLowerCase().trim(); // Convertimos a minúsculas
   clearTimeout(timeoutBusqueda);
-  if (texto.length < 2) return;
+
+  if (textoBusqueda.length < 2) {
+    datalistClientes.innerHTML = "";
+    return;
+  }
+
   timeoutBusqueda = setTimeout(async () => {
     try {
-      const q = query(
-        collection(db, "Clientes"),
-        orderBy("__name__"),
-        startAt(texto),
-        endAt(texto + "\uf8ff"),
-        limit(5)
-      );
+      // Nota: Si tienes miles de clientes, lo ideal es cargar la lista 
+      // de nombres una sola vez al inicio para ahorrar lecturas.
+      const q = query(collection(db, "Clientes"));
       const snap = await getDocs(q);
+      
       datalistClientes.innerHTML = "";
+      
       snap.forEach((d) => {
+        const id = d.id; // El nombre del cliente es el ID según tu código
+        const idMinusculas = id.toLowerCase();
         const data = d.data();
-        const id = d.id;
-        const option = document.createElement("option");
-        option.value = id;
-        datalistClientes.appendChild(option);
-        clientesInfo[id] = {
-          Direccion: data.Direccion || "----",
-          Local: data.Local || "----",
-          Localidad: data.Localidad || "----",
-        };
+
+        // AQUÍ LA MAGIA: comprobamos si el texto está incluido en cualquier parte
+        if (idMinusculas.includes(textoBusqueda)) {
+          const option = document.createElement("option");
+          option.value = id;
+          datalistClientes.appendChild(option);
+          
+          clientesInfo[id] = {
+            Direccion: data.Direccion || "----",
+            Local: data.Local || "----",
+            Localidad: data.Localidad || "----",
+          };
+        }
       });
     } catch (error) {
       console.error("Error buscando clientes:", error);
