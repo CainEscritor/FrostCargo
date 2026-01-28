@@ -1,46 +1,132 @@
 <!DOCTYPE html>
 <html lang="es">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Frostcargo | Inicio</title>
     <link rel="icon" type="image/png" href="images/Frost.jpg" />
     <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
+    <style>
+        /* Pantalla de bloqueo con el mismo fondo que el body */
+        #login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: white; /* Color base */
+            background-image: inherit; /* Hereda el fondo de pantalla de tu CSS */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .login-box {
+            text-align: center;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .login-box input {
+            padding: 10px;
+            font-size: 16px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            display: block;
+        }
+
+        .login-box button {
+            padding: 10px 25px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        /* Ocultar el contenido inicialmente sin romper el layout */
+        .menu-buttons {
+            visibility: hidden;
+        }
+    </style>
+</head>
+<body>
     <header class="header">
-      <div class="logo">
-        <img src="images/Grido_logo.png" alt="logo" />
-      </div>
-    </header>    
+        <div class="logo">
+            <img src="images/Grido_logo.png" alt="logo" />
+        </div>
+    </header>
 
-    <div class="menu-buttons">
-      <a href="ingreso.html">
-        <img src="images/logo1.png" alt="Productos" />
-        <span>Ingreso pedidos</span>
-      </a>
-      <a href="pedidos.html">
-        <img src="images/logo2.png" alt="Pedidos" />
-        <span>Pedidos vigentes</span>
-      </a>
-      <a href="stock.html">
-        <img src="images/logo3.png" alt="Stock" />
-        <span>Stock</span>
-      </a>
-      <a href="nuevo.html">
-        <img src="images/logo4.png" alt="Gestión Productos" />
-        <span>Gestión Productos</span>
-      </a>
-      <a href="nuevoCliente.html">
-        <img src="images/logo5.png" alt="Gestión Clientes" />
-        <span>Gestión Clientes</span>
-      </a>
-      <a href="precios.html">
-        <img src="images/logo6.png" alt="Gestión Clientes" />
-        <span>Gestión Precios</span>
-      </a>
+    <div id="login-overlay">
+        <div class="login-box">
+            <h3>BIENVENIDO A FROSTCARGO</h3>
+            <input type="password" id="password-input" placeholder="Ingese la clave..." />
+            <button onclick="checkPassword()">Ingresar</button>
+            <p id="error-msg" style="color: red; display: none; margin-top: 10px;">Clave incorrecta</p>
+        </div>
     </div>
-  </body>
-  
-</html>
 
+    <div class="menu-buttons" id="main-content">
+        <a href="ingreso.html">
+            <img src="images/logo1.png" alt="Productos" />
+            <span>Ingreso pedidos</span>
+        </a>
+        <a href="pedidos.html">
+            <img src="images/logo2.png" alt="Pedidos" />
+            <span>Pedidos vigentes</span>
+        </a>
+        <a href="stock.html">
+            <img src="images/logo3.png" alt="Stock" />
+            <span>Stock</span>
+        </a>
+        <a href="nuevo.html">
+            <img src="images/logo4.png" alt="Gestión Productos" />
+            <span>Gestión Productos</span>
+        </a>
+        <a href="nuevoCliente.html">
+            <img src="images/logo5.png" alt="Gestión Clientes" />
+            <span>Gestión Clientes</span>
+        </a>
+        <a href="precios.html">
+            <img src="images/logo6.png" alt="Gestión Clientes" />
+            <span>Gestión Precios</span>
+        </a>
+    </div>
+
+    <script>
+        // Función para validar
+        function checkPassword() {
+            const pass = document.getElementById('password-input').value;
+            if (pass.toLowerCase() === "titanic1912") {
+                sessionStorage.setItem('access_granted', 'true'); // Guarda el permiso
+                showContent();
+            } else {
+                document.getElementById('error-msg').style.display = "block";
+            }
+        }
+
+        // Función para mostrar el contenido
+        function showContent() {
+            document.getElementById('login-overlay').style.display = "none";
+            document.getElementById('main-content').style.visibility = "visible";
+        }
+
+        // Al cargar la página, revisar si ya puso la clave antes
+        window.onload = function() {
+            if (sessionStorage.getItem('access_granted') === 'true') {
+                showContent();
+            }
+        };
+
+        // Escuchar tecla Enter
+        document.getElementById("password-input").addEventListener("keyup", function(e) {
+            if (e.key === "Enter") checkPassword();
+        });
+    </script>
+</body>
+</html>

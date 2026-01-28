@@ -795,6 +795,7 @@ async function drawRemito(
 
   // --- TOTALES Y OPCIONALES ---
   y += 5;
+  
 
   // Si ocultamos precios, mostramos como antes (total de unidades)
   const totalProductos = Object.values(productosPedidos).reduce(
@@ -872,13 +873,15 @@ async function drawRemito(
   }
 
   // --- PIE DE PÁGINA (FIRMAS) ---
-  docPDF.setFont("helvetica", "normal");
-  docPDF.setFontSize(8);
-  docPDF.text("Recibí(mos) Conforme", 10, y);
-  docPDF.text("Firma: ____________________", 160, y);
-  y += 5;
-  docPDF.text("Aclaración: ________________", 160, y);
-  y += 5;
+  const pageHeight = docPDF.internal.pageSize.getHeight();
+const footerY = pageHeight - 25; // margen inferior seguro
+
+docPDF.setFont("helvetica", "normal");
+docPDF.setFontSize(8);
+
+docPDF.text("Recibí(mos) Conforme", 10, footerY);
+docPDF.text("Firma: ____________________", pageWidth - 70, footerY);
+docPDF.text("Aclaración: ________________", pageWidth - 70, footerY + 5);
 
   // Observaciones
   if (observaciones) {

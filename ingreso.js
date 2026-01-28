@@ -2,16 +2,12 @@ import { db } from "./firebase.js";
 import {
   doc,
   getDoc,
-  updateDoc,
   collection,
   getDocs,
   Timestamp,
-  query,
-  orderBy,
-  startAt,
-  endAt,
-  limit,
   runTransaction,
+  FieldPath,
+  query,
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 const categorias = ["Ingrese categoría", "Remito", "Factura"];
@@ -59,15 +55,13 @@ const localidadInput = document.getElementById("localidad");
 const nombreInput = document.getElementById("nombre");
 const contenedorColecciones = document.getElementById("contenedor-colecciones");
 const mensajeConfirmacion = document.getElementById("mensaje-confirmacion");
-
 const stockModal = document.getElementById("stock-advertencia-modal");
 const stockDetalle = document.getElementById("stock-detalle");
 const btnForzarStock = document.getElementById("btn-forzar-stock");
 const btnCancelarStock = document.getElementById("btn-cancelar-stock");
-
 const clienteModal = document.getElementById("cliente-advertencia-modal");
 const nombreClienteAdvertencia = document.getElementById(
-  "nombre-cliente-advertencia"
+  "nombre-cliente-advertencia",
 );
 const btnGuardarForzadoCliente = document.getElementById("btn-guardar-forzado");
 const btnCancelarModalCliente = document.getElementById("btn-cancelar-modal");
@@ -79,68 +73,54 @@ datalistClientes.id = datalistId;
 document.body.appendChild(datalistClientes);
 nombreInput.setAttribute("list", datalistId);
 
-const stocksPorColeccion = {};
+// --- Estado Global (Caché) ---
 const inputsPorColeccion = {};
+let clientesCache = []; // Caché para ahorrar lecturas en Blaze
 let clientesInfo = {};
-let timeoutBusqueda = null;
 
 // --- Inicialización ---
 function fillSelect(select, options) {
   select.innerHTML = options
     .map(
       (opt) =>
-        `<option value="${
-          opt.includes("Ingrese") || opt.includes("Seleccione")
-            ? "Ingrese valor"
-            : opt
-        }">${opt}</option>`
+        `<option value="${opt.includes("Ingrese") || opt.includes("Seleccione") ? "Ingrese valor" : opt}">${opt}</option>`,
     )
     .join("");
 }
 fillSelect(categoriaSelect, categorias);
 fillSelect(vendedorSelect, vendedores);
 
-// --- Búsqueda de Clientes ---
-nombreInput.addEventListener("input", (e) => {
-  const textoBusqueda = e.target.value.toLowerCase().trim(); // Convertimos a minúsculas
-  clearTimeout(timeoutBusqueda);
-
-  if (textoBusqueda.length < 2) {
-    datalistClientes.innerHTML = "";
-    return;
+// --- Búsqueda de Clientes (Optimizada para Blaze) ---
+async function precargarClientes() {
+  try {
+    const snap = await getDocs(collection(db, "Clientes"));
+    clientesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    console.log("Caché de clientes lista.");
+  } catch (error) {
+    console.error("Error cargando clientes:", error);
   }
+}
 
-  timeoutBusqueda = setTimeout(async () => {
-    try {
-      // Nota: Si tienes miles de clientes, lo ideal es cargar la lista 
-      // de nombres una sola vez al inicio para ahorrar lecturas.
-      const q = query(collection(db, "Clientes"));
-      const snap = await getDocs(q);
-      
-      datalistClientes.innerHTML = "";
-      
-      snap.forEach((d) => {
-        const id = d.id; // El nombre del cliente es el ID según tu código
-        const idMinusculas = id.toLowerCase();
-        const data = d.data();
+nombreInput.addEventListener("input", (e) => {
+  const texto = e.target.value.toLowerCase().trim();
+  datalistClientes.innerHTML = "";
+  if (texto.length < 2) return;
 
-        // AQUÍ LA MAGIA: comprobamos si el texto está incluido en cualquier parte
-        if (idMinusculas.includes(textoBusqueda)) {
-          const option = document.createElement("option");
-          option.value = id;
-          datalistClientes.appendChild(option);
-          
-          clientesInfo[id] = {
-            Direccion: data.Direccion || "----",
-            Local: data.Local || "----",
-            Localidad: data.Localidad || "----",
-          };
-        }
-      });
-    } catch (error) {
-      console.error("Error buscando clientes:", error);
-    }
-  }, 300);
+  // Filtrado local en memoria (0 costo de lectura)
+  const filtrados = clientesCache.filter((c) =>
+    c.id.toLowerCase().includes(texto),
+  );
+
+  filtrados.forEach((c) => {
+    const option = document.createElement("option");
+    option.value = c.id;
+    datalistClientes.appendChild(option);
+    clientesInfo[c.id] = {
+      Direccion: c.Direccion || "----",
+      Local: c.Local || "----",
+      Localidad: c.Localidad || "----",
+    };
+  });
 });
 
 nombreInput.addEventListener("change", (e) => {
@@ -153,10 +133,17 @@ function crearPanelColeccion(nombreColeccion, titulo) {
   const panel = document.createElement("div");
   panel.className = "coleccion-panel panel";
   panel.style.padding = "20px";
-  panel.innerHTML = `<h3>${titulo}</h3>`;
+  panel.innerHTML = `<h3 class="coleccion-titulo" style="cursor:pointer;">${titulo}</h3>`;
   const tbody = document.createElement("div");
   tbody.className = "coleccion-body";
-  tbody.dataset.collection = nombreColeccion;
+  tbody.style.display = "none";
+  const tituloEl = panel.querySelector(".coleccion-titulo");
+
+  tituloEl.addEventListener("click", () => {
+    if (tbody.querySelector(".fila.activo")) return;
+    tbody.style.display = tbody.style.display === "none" ? "block" : "none";
+  });
+
   panel.appendChild(tbody);
   contenedorColecciones.appendChild(panel);
   inputsPorColeccion[nombreColeccion] = tbody;
@@ -165,14 +152,9 @@ function crearPanelColeccion(nombreColeccion, titulo) {
 
 function renderizarColeccion(tbody, data) {
   tbody.innerHTML = "";
-  if (!data || Object.keys(data).length === 0) {
-    tbody.innerHTML = `<p style="color:#666;text-align:center">Sin datos</p>`;
-    return;
-  }
-
-  // CORRECCIÓN: Ordenar alfabéticamente las llaves (nombres de productos)
+  if (!data) return;
   Object.keys(data)
-    .sort((a, b) => a.localeCompare(b))
+    .sort()
     .forEach((prod) => {
       const fila = document.createElement("div");
       fila.className = "fila";
@@ -180,7 +162,7 @@ function renderizarColeccion(tbody, data) {
       fila.innerHTML = `
       <div class="celda">${prod}</div>
       <div style="width: 120px; text-align: right;">
-        <input type="number" min="0" class="cantidad-input" data-key="${prod}" value="0">
+        <input type="number" min="0" class="cantidad-input" value="0">
       </div>`;
       const input = fila.querySelector("input");
       input.addEventListener("input", () => {
@@ -197,17 +179,15 @@ async function cargarTodosLosProductos() {
     const tbody = crearPanelColeccion(col, nombresColecciones[col] || col);
     try {
       const snap = await getDoc(doc(db, col, "Stock"));
-      const data = snap.exists() ? snap.data() : {};
-      stocksPorColeccion[col] = data;
-      renderizarColeccion(tbody, data);
+      renderizarColeccion(tbody, snap.exists() ? snap.data() : {});
     } catch (err) {
-      tbody.innerHTML = `<p style="color:#c00;text-align:center">Error</p>`;
+      tbody.innerHTML = `<p style="color:#c00">Error</p>`;
     }
   });
   await Promise.all(promesas);
 }
 
-// --- FUNCIÓN GUARDAR ---
+// --- FUNCIÓN GUARDAR (Transaccional y Atómica) ---
 async function guardarPedidoFinal(forzarStock = false, forzarCliente = false) {
   const nombre = nombreInput.value.trim();
   const productosSeleccionados = [];
@@ -216,9 +196,9 @@ async function guardarPedidoFinal(forzarStock = false, forzarCliente = false) {
     const tbody = inputsPorColeccion[col];
     if (!tbody) continue;
     tbody.querySelectorAll(".fila.activo").forEach((fila) => {
-      const key = fila.dataset.key;
       const cantidad = Number(fila.querySelector("input").value);
-      if (cantidad > 0) productosSeleccionados.push({ col, key, cantidad });
+      if (cantidad > 0)
+        productosSeleccionados.push({ col, key: fila.dataset.key, cantidad });
     });
   }
 
@@ -227,79 +207,66 @@ async function guardarPedidoFinal(forzarStock = false, forzarCliente = false) {
     categoriaSelect.value === "Ingrese valor" ||
     productosSeleccionados.length === 0
   ) {
-    alert("Complete el nombre, la categoría y al menos un producto.");
+    alert("Complete los campos obligatorios.");
     return;
   }
 
+  // Validación de cliente con el caché local
   if (!clientesInfo[nombre] && !forzarCliente) {
     nombreClienteAdvertencia.innerText = nombre;
     clienteModal.style.display = "flex";
     return;
   }
 
-  if (!forzarStock) {
-    let criticos = [];
-    for (const colId of [
-      ...new Set(productosSeleccionados.map((p) => p.col)),
-    ]) {
-      const snap = await getDoc(doc(db, colId, "Stock"));
-      const data = snap.data() || {};
-      productosSeleccionados
-        .filter((p) => p.col === colId)
-        .forEach((p) => {
-          const actual = data[p.key] || 0;
-          if (actual - p.cantidad < 0) {
-            criticos.push(
-              `${p.key} (Stock: ${actual}, Quedaría: ${actual - p.cantidad})`
-            );
-          }
-        });
-    }
-
-    if (criticos.length > 0) {
-      stockDetalle.innerHTML = `<ul>${criticos
-        .map((i) => `<li>${i}</li>`)
-        .join("")}</ul>`;
-      document.getElementById("stock-advertencia-titulo").innerText =
-        "⚠️ Stock Insuficiente";
-      btnForzarStock.style.display = "block";
-      stockModal.style.display = "flex";
-      return;
-    }
-  }
-
   try {
     await runTransaction(db, async (transaction) => {
+      // 1. Obtener Remito
       const remitoRef = doc(db, "NumeroRemito", "remito");
       const remitoSnap = await transaction.get(remitoRef);
       const num = remitoSnap.data()?.numero || 0;
-      const idPedido = `${nombre} R${String(num).padStart(5, "0")}`;
 
-      const productosPedidos = {};
-      const coleccionesUnicas = [
-        ...new Set(productosSeleccionados.map((p) => p.col)),
-      ];
+      // 2. Obtener Stocks
+      const unicasCols = [...new Set(productosSeleccionados.map((p) => p.col))];
       const stockSnaps = {};
-
-      for (const cid of coleccionesUnicas) {
+      for (const cid of unicasCols) {
         stockSnaps[cid] = await transaction.get(doc(db, cid, "Stock"));
       }
 
-      for (const item of productosSeleccionados) {
-        const data = stockSnaps[item.col].data() || {};
-        const nuevoStock = (data[item.key] || 0) - item.cantidad;
-        transaction.update(doc(db, item.col, "Stock"), {
-          [item.key]: nuevoStock,
-        });
-        productosPedidos[`${item.col}::${item.key}`] = {
-          cantidad: item.cantidad,
-          producto: item.key,
-          coleccion: item.col,
+      const criticos = [];
+      const productosPedidos = {};
+
+      // 3. Validar Stock dentro de la transacción
+      for (const p of productosSeleccionados) {
+        const actual = stockSnaps[p.col].data()?.[p.key] || 0;
+        const final = actual - p.cantidad;
+        if (final < 0 && !forzarStock) {
+          criticos.push(`${p.key} (Stock: ${actual}, Quedaría: ${final})`);
+        }
+        productosPedidos[`${p.col}::${p.key}`] = {
+          cantidad: p.cantidad,
+          producto: p.key,
+          coleccion: p.col,
           checked: false,
         };
       }
 
+      if (criticos.length > 0) {
+        throw { isStockError: true, list: criticos };
+      }
+
+      // 4. Aplicar Updates
+      productosSeleccionados.forEach((p) => {
+        const actual = stockSnaps[p.col].data()[p.key] || 0;
+        transaction.update(
+          doc(db, p.col, "Stock"),
+          new FieldPath(p.key),
+          actual - p.cantidad,
+        );
+      });
+
       const clienteData = clientesInfo[nombre] || {};
+      const idPedido = `${nombre} R${String(num).padStart(5, "0")}`;
+
       transaction.set(doc(db, "Pedidos", idPedido), {
         Nombre: nombre,
         Localidad: localidadInput.value,
@@ -312,49 +279,55 @@ async function guardarPedidoFinal(forzarStock = false, forzarCliente = false) {
         Direccion: clienteData.Direccion || "",
         Local: clienteData.Local || "",
       });
+
       transaction.update(remitoRef, { numero: num + 1 });
     });
 
+    // Éxito
     stockModal.style.display = "none";
     clienteModal.style.display = "none";
     mensajeConfirmacion.style.display = "block";
-    setTimeout(() => {
-      mensajeConfirmacion.style.display = "none";
-    }, 3000);
-
+    setTimeout(() => (mensajeConfirmacion.style.display = "none"), 3000);
     document.getElementById("pedido-form").reset();
     document
       .querySelectorAll(".fila")
       .forEach((f) => f.classList.remove("activo"));
     await cargarTodosLosProductos();
   } catch (e) {
-    console.error(e);
-    alert("Error al guardar el pedido.");
+    if (e.isStockError) {
+      stockDetalle.innerHTML = `<ul>${e.list.map((i) => `<li>${i}</li>`).join("")}</ul>`;
+      btnForzarStock.style.display = "block";
+      stockModal.style.display = "flex";
+    } else {
+      console.error(e);
+      alert("Error en la transacción.");
+    }
   }
 }
 
-// --- EVENTOS ---
+// --- Eventos ---
 document.getElementById("pedido-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  guardarPedidoFinal(false, false);
+  guardarPedidoFinal();
 });
-
 btnGuardarForzadoCliente.onclick = () => {
   clienteModal.style.display = "none";
   guardarPedidoFinal(false, true);
 };
-
 btnCancelarModalCliente.onclick = () => {
   clienteModal.style.display = "none";
 };
-
 btnForzarStock.onclick = () => {
   stockModal.style.display = "none";
   guardarPedidoFinal(true, true);
 };
-
 btnCancelarStock.onclick = () => {
   stockModal.style.display = "none";
 };
 
-cargarTodosLosProductos();
+// --- Inicio de App ---
+async function iniciar() {
+  await precargarClientes();
+  await cargarTodosLosProductos();
+}
+iniciar();
