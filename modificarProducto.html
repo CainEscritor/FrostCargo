@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Modificar Producto</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: linear-gradient(90deg, #ffffff, #63d3ff);
+        color: #000000;
+      }
+      main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 50px 20px;
+      }
+      .panel {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        max-width: 500px;
+        width: 100%;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      }
+      .formulario-gestion {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      label {
+        font-weight: bold;
+        font-size: 14px;
+        color: #333;
+      }
+      input,
+      select {
+        padding: 12px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        font-size: 16px;
+      }
+      .btn-modificar {
+        background: #ff9800;
+        color: white;
+        border: none;
+        padding: 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 16px;
+        margin-top: 10px;
+      }
+      .btn-modificar:disabled {
+        background: #ccc;
+      }
+      .footer-nav {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        padding: 15px;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        border-top: 1px solid #ddd;
+      }
+      .info-nota {
+        font-size: 12px;
+        color: #666;
+        font-style: italic;
+        margin-top: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 style="text-align: center">Modificar Producto Existente</h1>
+
+    <main>
+      <div class="panel">
+            <div class="formulario-gestion">
+                <h3>Datos Actuales (Origen)</h3>
+                <label>Categoría Actual</label>
+                <select id="cat-origen">
+                    <option value="" disabled selected>Seleccione categoría...</option>
+                </select>
+                
+                <label>Seleccionar Producto</label>
+                <select id="nom-origen">
+                    <option value="" disabled selected>Primero elija categoría...</option>
+                </select>
+                
+                <hr style="width: 100%; margin: 10px 0;">
+                
+                <h3>Datos Nuevos (Destino)</h3>
+                <label>Nueva Categoría</label>
+                <select id="cat-destino"></select>
+                
+                <label>Nuevo Nombre</label>
+                <input type="text" id="nom-nuevo" placeholder="Nombre a asignar">
+
+                <label>Nuevo ID (Código)</label>
+                <input type="text" id="id-nuevo" placeholder="Código a asignar">
+
+                <button class="btn-modificar" id="btn-ejecutar">Actualizar Producto</button>
+                <p class="info-nota">* Se conservará el stock y se borrará de la categoría anterior.</p>
+            </div>
+        </div>
+        <a
+        href="nuevo.html"
+        style="
+          background: #34495e;
+          color: white;
+          padding: 10px 20px;
+          text-decoration: none;
+          border-radius: 6px;
+          font-weight: bold;
+        "
+        >Volver a Gestión de Productos</a
+      >
+    </main>   
+
+    <script type="module" src="modificarProducto.js"></script>
+  </body>
+</html>

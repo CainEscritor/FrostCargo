@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -103,7 +103,7 @@
         "
         >Volver a Stock</a
       >
-      
+
       <a
         href="agregarStock.html"
         style="
@@ -114,6 +114,18 @@
           border-radius: 6px;
         "
         >Ir a Cargar Cantidades</a
+      >
+
+      <a
+        href="modificarProducto.html"
+        style="
+          background: #ff9800;
+          color: white;
+          padding: 10px;
+          text-decoration: none;
+          border-radius: 6px;
+        "
+        >Modificar Producto</a
       >
     </footer>
 
@@ -190,17 +202,13 @@
 
           try {
             // 1. Guarda en la colección de Stock de la categoría correspondiente
-            await setDoc(
-                doc(db, col, "Stock"),
-                { [nom]: 0 }, 
-                { merge: true }
-            );
+            await setDoc(doc(db, col, "Stock"), { [nom]: 0 }, { merge: true });
 
             // 2. MODIFICACIÓN: Guarda en la colección "idProductos" documento "idProducto"
             await setDoc(
-                doc(db, "idProductos", "idProducto"),
-                { [nom]: idProd },
-                { merge: true }
+              doc(db, "idProductos", "idProducto"),
+              { [nom]: idProd },
+              { merge: true },
             );
 
             alert("Creado correctamente!");
@@ -215,14 +223,20 @@
         // BOTÓN BORRAR (Modificado para borrar del documento único)
         document.getElementById(`btn-b-${col}`).onclick = async () => {
           const nom = document.getElementById(`b-${col}`).value.trim();
-          if (!nom || !confirm("¿Borrar el producto y su ID de todo el sistema?")) return;
+          if (
+            !nom ||
+            !confirm("¿Borrar el producto y su ID de todo el sistema?")
+          )
+            return;
 
           try {
             // Borra de la colección de Stock de la categoría
             await updateDoc(doc(db, col, "Stock"), { [nom]: deleteField() });
-            
+
             // Borra del documento central de IDs
-            await updateDoc(doc(db, "idProductos", "idProducto"), { [nom]: deleteField() });
+            await updateDoc(doc(db, "idProductos", "idProducto"), {
+              [nom]: deleteField(),
+            });
 
             alert("Eliminado");
             document.getElementById(`b-${col}`).value = "";

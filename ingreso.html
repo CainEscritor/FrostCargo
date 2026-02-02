@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -176,7 +176,6 @@
         margin-bottom: 6px;
         text-align: left;
       }
-      
     </style>
   </head>
   <body>
@@ -205,7 +204,7 @@
           </div>
 
           <div class="input-container">
-            <label for="fechaNumerica">Fecha (dd/mm/aaaa)</label>
+            <label for="fechaNumerica">Fecha de entrega del pedido</label>
             <input type="date" id="fechaNumerica" required />
           </div>
 
@@ -226,25 +225,41 @@
 
           <h2>Productos (por colección)</h2>
           <div id="contenedor-colecciones" class="grupos-panels"></div>
+          <div
+            id="total-pedido-container"
+            style="
+              text-align: right;
+              padding: 20px;
+              font-size: 1.5rem;
+              font-weight: bold;
+              border-top: 2px solid #2196f3;
+              margin-top: 20px;
+            "
+          >
+            Total Pedido: $<span id="total-general">0</span>
+          </div>
           <button type="submit" class="btn-guardar">Guardar Pedido</button>
         </form>
       </div>
     </main>
 
-    <div id="mensaje-confirmacion" style="
-        position: fixed; 
-        top: 20px; 
-        right: 20px; 
-        background-color: #4CAF50; 
-        color: white; 
-        padding: 15px 25px; 
-        border-radius: 5px; 
-        box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
-        display: none; 
-        z-index: 4000; 
+    <div
+      id="mensaje-confirmacion"
+      style="
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: #4caf50;
+        color: white;
+        padding: 15px 25px;
+        border-radius: 5px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        display: none;
+        z-index: 4000;
         font-weight: bold;
-    ">
-        Pedido Guardado con Éxito! 🎉
+      "
+    >
+      Pedido Guardado con Éxito! 🎉
     </div>
     <div id="cliente-advertencia-modal" class="modal-overlay-custom">
       <div class="modal-content-custom">
