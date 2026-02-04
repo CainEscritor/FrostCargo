@@ -6,25 +6,21 @@ import {
   collection,
   query,
   where,
-  orderBy,
-  limit,
   getDocs,
-  deleteDoc, // 🔹 Añadido para poder renombrar
+  deleteDoc,
+  limit,
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-// DOM
+// --- ELEMENTOS DEL DOM ---
 const formBuscar = document.getElementById("form-buscar-cliente");
-const nombreClienteBuscarInput = document.getElementById(
-  "nombre-cliente-buscar"
-);
+const nombreClienteBuscarInput = document.getElementById("nombre-cliente-buscar");
 const btnBuscar = document.getElementById("btn-buscar");
 const mensajeBusquedaDiv = document.getElementById("mensaje-busqueda");
-const panelModificacion = document.getElementById("panel-modificacion");
-
 const formModifica = document.getElementById("form-modifica-cliente");
 const btnGuardar = document.getElementById("btn-guardar-cambios");
 const mensajeModificacionDiv = document.getElementById("mensaje-modificacion");
 
+// Campos del Formulario
 const nombreInput = document.getElementById("nombre");
 const direccionInput = document.getElementById("direccion");
 const cuitInput = document.getElementById("cuit");
@@ -32,25 +28,20 @@ const localInput = document.getElementById("local");
 const localidadInput = document.getElementById("localidad");
 const telefonoInput = document.getElementById("telefono");
 
-// Variables de estado
+// Variable para recordar el nombre original antes de la edición
 let clienteOriginalId = null;
 
 // ----------------------------------------------------------------------
-// AUTOCOMPLETADO OPTIMIZADO PARA MILES DE CLIENTES (Blaze-Friendly)
+// 1. AUTOCOMPLETADO (Para encontrar al cliente rápidamente)
 // ----------------------------------------------------------------------
-
 nombreClienteBuscarInput.addEventListener("input", async () => {
-  const valor = nombreClienteBuscarInput.value.trim();
-
-  // Solo busca si escribió al menos 3 letras (Ahorra lecturas innecesarias)
+  const valor = nombreClienteBuscarInput.value.trim().toUpperCase();
   if (valor.length < 3) {
     removerListaSugerencias();
     return;
   }
 
   try {
-    // Búsqueda por rango: Busca nombres que empiecen con lo escrito
-    // El caracter '\uf8ff' es un truco de Firestore para buscar prefijos
     const q = query(
       collection(db, "Clientes"),
       where("Nombre", ">=", valor),
@@ -60,7 +51,6 @@ nombreClienteBuscarInput.addEventListener("input", async () => {
 
     const snap = await getDocs(q);
     const sugerencias = snap.docs.map((d) => d.data().Nombre);
-
     renderizarSugerencias(sugerencias);
   } catch (e) {
     console.error("Error en sugerencias:", e);
@@ -84,7 +74,6 @@ function renderizarSugerencias(sugerencias) {
     });
     lista.appendChild(li);
   });
-
   nombreClienteBuscarInput.parentNode.appendChild(lista);
 }
 
@@ -94,11 +83,10 @@ function removerListaSugerencias() {
 }
 
 // ----------------------------------------------------------------------
-// LÓGICA DE BÚSQUEDA POR ID
+// 2. BUSCAR Y CARGAR DATOS
 // ----------------------------------------------------------------------
-
 async function buscarYMostrarCliente() {
-  const nombreBusqueda = nombreClienteBuscarInput.value.trim();
+  const nombreBusqueda = nombreClienteBuscarInput.value.trim().toUpperCase();
   mensajeBusquedaDiv.textContent = "";
   formModifica.style.display = "none";
 
@@ -108,17 +96,18 @@ async function buscarYMostrarCliente() {
   btnBuscar.textContent = "Buscando...";
 
   try {
-    // En tu DB el ID es el Nombre
     const clienteRef = doc(db, "Clientes", nombreBusqueda);
     const clienteSnap = await getDoc(clienteRef);
 
     if (!clienteSnap.exists()) {
-      mensajeBusquedaDiv.textContent = "Cliente no encontrado.";
+      mensajeBusquedaDiv.textContent = "El cliente no existe.";
       mensajeBusquedaDiv.style.color = "orange";
       return;
     }
 
     const data = clienteSnap.data();
+    
+    // Cargamos los campos en el formulario
     nombreInput.value = data.Nombre || "";
     direccionInput.value = data.Direccion || "";
     cuitInput.value = data.CUIT || "";
@@ -126,18 +115,19 @@ async function buscarYMostrarCliente() {
     localidadInput.value = data.Localidad || "";
     telefonoInput.value = data.Telefono || "";
 
-    clienteOriginalId = nombreBusqueda;
+    // IMPORTANTE: Guardamos el ID actual para saber cuál borrar si se cambia el nombre
+    clienteOriginalId = nombreBusqueda; 
+    
     formModifica.style.display = "flex";
-    mensajeBusquedaDiv.textContent = "Datos cargados correctamente.";
+    mensajeBusquedaDiv.textContent = "Cliente cargado.";
     mensajeBusquedaDiv.style.color = "green";
 
-    aplicarFormatoCuit(cuitInput);
   } catch (error) {
-    mensajeBusquedaDiv.textContent = "Error al buscar cliente.";
+    mensajeBusquedaDiv.textContent = "Error de conexión.";
     console.error(error);
   } finally {
     btnBuscar.disabled = false;
-    btnBuscar.textContent = "Cargar Datos del Cliente";
+    btnBuscar.textContent = "Cargar Datos";
   }
 }
 
@@ -147,58 +137,63 @@ formBuscar.addEventListener("submit", (e) => {
 });
 
 // ----------------------------------------------------------------------
-// GUARDADO CON LÓGICA DE RENOMBRE (Crucial para IDs basados en Nombre)
+// 3. GUARDAR CAMBIOS (Lógica de Renombrado)
 // ----------------------------------------------------------------------
-
 formModifica.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const nuevoNombre = nombreInput.value.trim();
-  const datos = {
+  const nuevoNombre = nombreInput.value.trim().toUpperCase();
+  const datosActualizados = {
     Nombre: nuevoNombre,
-    Direccion: direccionInput.value.trim(),
+    Direccion: direccionInput.value.trim().toUpperCase(),
     CUIT: cuitInput.value.trim(),
-    Local: localInput.value.trim(),
-    Localidad: localidadInput.value.trim(),
+    Local: localInput.value.trim().toUpperCase(),
+    Localidad: localidadInput.value.trim().toUpperCase(),
     Telefono: telefonoInput.value.trim(),
   };
 
   btnGuardar.disabled = true;
-  btnGuardar.textContent = "Guardando...";
+  btnGuardar.textContent = "Procesando...";
 
   try {
-    // Si el usuario cambió el nombre, el ID del documento debe cambiar
+    // Si el nombre cambió, el documento de la imagen (ID) debe cambiar
     if (nuevoNombre !== clienteOriginalId) {
-      // 1. Crear documento nuevo con el nuevo ID
-      await setDoc(doc(db, "Clientes", nuevoNombre), datos);
-      // 2. Borrar el documento viejo
+      
+      // Verificamos si ya existe alguien con el nuevo nombre para no pisarlo
+      const nuevoDocRef = doc(db, "Clientes", nuevoNombre);
+      const existeNuevo = await getDoc(nuevoDocRef);
+
+      if (existeNuevo.exists()) {
+        alert("¡Error! Ya existe un cliente llamado " + nuevoNombre);
+        btnGuardar.disabled = false;
+        btnGuardar.textContent = "Guardar Cambios";
+        return;
+      }
+
+      // 1. Crear el nuevo documento con el ID nuevo
+      await setDoc(nuevoDocRef, datosActualizados);
+
+      // 2. Eliminar el documento antiguo (el que tenía el nombre viejo)
       await deleteDoc(doc(db, "Clientes", clienteOriginalId));
+      
+      mensajeModificacionDiv.textContent = "Nombre cambiado y datos actualizados. ✅";
     } else {
-      // Actualización normal
-      await setDoc(doc(db, "Clientes", clienteOriginalId), datos, {
-        merge: true,
-      });
+      // Si el nombre es igual, solo actualizamos los campos
+      await setDoc(doc(db, "Clientes", clienteOriginalId), datosActualizados, { merge: true });
+      mensajeModificacionDiv.textContent = "Datos actualizados correctamente. ✅";
     }
 
-    mensajeModificacionDiv.textContent = "Cambios guardados con éxito. ✅";
     mensajeModificacionDiv.style.color = "green";
-    setTimeout(() => location.reload(), 1500); // Recargar para limpiar estado
+    
+    // Recargamos para limpiar todo y evitar confusiones de IDs
+    setTimeout(() => location.reload(), 2000);
+
   } catch (error) {
     mensajeModificacionDiv.textContent = "Error al guardar cambios.";
+    mensajeModificacionDiv.style.color = "red";
     console.error(error);
   } finally {
     btnGuardar.disabled = false;
     btnGuardar.textContent = "Guardar Cambios";
   }
 });
-
-// Helper de CUIT
-function aplicarFormatoCuit(el) {
-  let v = el.value.replace(/\D/g, "").substring(0, 11);
-  let f = "";
-  if (v.length > 0) f = v.substring(0, 2);
-  if (v.length > 2) f += "-" + v.substring(2, 10);
-  if (v.length > 10) f += "-" + v.substring(10, 11);
-  el.value = f;
-}
-cuitInput.addEventListener("input", (e) => aplicarFormatoCuit(e.target));

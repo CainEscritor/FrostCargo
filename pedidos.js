@@ -91,18 +91,34 @@ function cargarImagenLogo(src) {
 // 5. BOTÓN DE RESUMEN
 function renderBotonResumen(pedidosFiltradosFinales) {
   const resumenBtnContainer = document.createElement("div");
-  resumenBtnContainer.style.cssText = "margin: 20px 0; text-align: center;";
+  resumenBtnContainer.style.cssText =
+    "margin: 20px 0; text-align: center; display: flex; flex-direction: column; gap: 10px;";
 
+  // 🔶 BOTÓN RESUMEN GENERAL
   const btnResumen = document.createElement("button");
-  btnResumen.textContent = `📝 Generar Resumen Acumulado (${pedidosFiltradosFinales.length})`;
+  btnResumen.textContent = `📝 GENERAR RESUMEN ACUMULADO (${pedidosFiltradosFinales.length})`;
   btnResumen.style.cssText =
     "background-color: #ff9800; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;";
 
-  btnResumen.onclick = () => generarPDFAcumulado(pedidosFiltradosFinales);
+  btnResumen.onclick = () =>
+    generarPDFAcumulado(pedidosFiltradosFinales);
+  
+
+  // 🔵 BOTÓN SOLO REMITOS
+  const btnRemitos = document.createElement("button");
+btnRemitos.textContent = "📄 PDF REMITOS FILTRADOS";
+btnRemitos.style.cssText =
+  "background:#2196f3;color:white;padding:12px;border:none;border-radius:8px;font-weight:bold;";
+btnRemitos.onclick = () =>
+  generarPDFRemitosFiltrados(pedidosFiltradosFinales);
+
+resumenBtnContainer.appendChild(btnRemitos);
 
   resumenBtnContainer.appendChild(btnResumen);
+  resumenBtnContainer.appendChild(btnRemitos);
   pedidosContainer.appendChild(resumenBtnContainer);
 }
+
 
 // 🟣 DOM (ANTES DE ARRANCAR FIREBASE)
 const pedidosContainer = document.getElementById("pedidosContainer");
@@ -407,6 +423,143 @@ const EMPRESAS = {
   },
 };
 
+window.generarPDFRemitos = function (pedidos) {
+  if (!pedidos.length) {
+    alert("No hay remitos para generar.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const docPDF = new jsPDF({ unit: "mm", format: "a4" });
+
+  let y = 15;
+
+  docPDF.setFontSize(16);
+  docPDF.text("Resumen de Remitos", 105, y, { align: "center" });
+  y += 8;
+
+  docPDF.setFontSize(10);
+  docPDF.text(
+    `Generado: ${new Date().toLocaleDateString("es-AR")}`,
+    105,
+    y,
+    { align: "center" },
+  );
+  y += 10;
+
+  const filas = [];
+
+  pedidos.forEach((pedidoDoc) => {
+    const data = pedidoDoc.data();
+    const productos = data.productos || {};
+
+    Object.values(productos).forEach((detalle) => {
+      if (!detalle || !detalle.producto || !detalle.cantidad) return;
+
+      filas.push([
+        data.fechaEntrega || "",
+        data.Nombre || "",
+        data.NumeroRemito || "",
+        detalle.producto,
+        detalle.cantidad,
+      ]);
+    });
+  });
+
+  if (!filas.length) {
+    alert("Los remitos no tienen productos.");
+    return;
+  }
+
+  docPDF.autoTable({
+    startY: y,
+    head: [["Fecha", "Cliente", "Remito", "Producto", "Cantidad"]],
+    body: filas,
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [33, 150, 243] },
+  });
+
+  docPDF.save(
+    `Remitos_${new Date().toISOString().slice(0, 10)}.pdf`,
+  );
+};
+
+async function generarPDFRemitosFiltrados(pedidosFiltradosDocs) {
+  if (!pedidosFiltradosDocs || pedidosFiltradosDocs.length === 0) {
+    alert("No hay pedidos para generar remitos.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const docPDF = new jsPDF({ format: "legal", unit: "mm" });
+
+  // 🔹 cargar IDs
+  const idsSnap = await getDoc(doc(db, "idProductos", "idProducto"));
+  const idsData = idsSnap.exists() ? idsSnap.data() : {};
+
+  // 🔹 precios
+  const preciosSnap = await getDoc(doc(db, "Precios", "Precio"));
+  const preciosData = preciosSnap.exists() ? preciosSnap.data() : {};
+
+  // 🔹 logo (empresa por defecto)
+  const loadImage = (src) =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+    });
+
+  const empresaData = EMPRESAS["FROSTCARGO"]; // default
+  let logoImg = await loadImage(empresaData.logo);
+  if (!logoImg) logoImg = await loadImage("images/Grido_logo.png");
+
+  let primeraPagina = true;
+
+  for (const pedidoDoc of pedidosFiltradosDocs) {
+    const data = pedidoDoc.data();
+    const productosPedidos = data.productos || {};
+
+    // 🔹 agrupar productos como ya usás
+    const grupos = {};
+    coleccionesStock.forEach((c) => (grupos[c] = []));
+
+    Object.values(productosPedidos).forEach((detalle) => {
+      if (detalle?.coleccion && detalle?.producto && detalle.cantidad > 0) {
+        grupos[detalle.coleccion].push(detalle.producto);
+      }
+    });
+
+    const options = {
+      data,
+      preciosData,
+      grupos,
+      productosPedidos,
+      ocultarPrecios: false,
+      descuentoPorcentaje: 0,
+      descuentoEfectivo: 0,
+      descuentoArticulosPorcentaje: 0,
+      articulosSeleccionados: [],
+      observaciones: "",
+      idsData,
+      empresaData,
+      flete: 0,
+    };
+
+    if (!primeraPagina) docPDF.addPage("legal", "portrait");
+    primeraPagina = false;
+
+    await drawRemito(docPDF, logoImg, "ORIGINAL", options);
+    docPDF.addPage("legal", "portrait");
+    await drawRemito(docPDF, logoImg, "DUPLICADO", options);
+  }
+
+  docPDF.save(
+    `Remitos_${new Date().toISOString().slice(0, 10)}.pdf`,
+  );
+}
+
+
 // -------------------------------------------------------------------
 // ## Generar PDF (Remito Individual)
 // -------------------------------------------------------------------
@@ -512,6 +665,7 @@ function mostrarModalRemito({
     });
 
     const modalContent = document.createElement("div");
+
     Object.assign(modalContent.style, {
       background: "#fff",
       padding: "25px",
@@ -560,24 +714,89 @@ function mostrarModalRemito({
         <textarea id="observaciones-input" rows="3" placeholder="Notas, condiciones de entrega, etc." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-size: 14px;"></textarea>
       </div>
 
+      <div style="margin-bottom: 15px;">
+  <label style="font-weight:bold; display:block; margin-bottom:5px;">
+    Descuento por artículo
+  </label>
+
+  <div id="articulos-descuento"
+     style="border:1px solid #ccc; border-radius:4px;
+            padding:8px; max-height:150px; overflow-y:auto;">
+</div>
+
+<label style="display:block; margin-top:10px; font-weight:bold;">
+  Porcentaje de descuento por artículo
+</label>
+
+
+
+
+  
+
+  <input type="number" id="descuento-articulos-input"
+  min="0" step="0.01"
+  placeholder="Ej: 10"
+  style="width:100%; margin-top:6px; padding:8px;
+         border:1px solid #ccc; border-radius:4px;">
+</div>
+
+
       <button id="generar-remito-final" style="width: 100%; padding: 10px; background-color: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer;">
         Generar PDF con Opciones
       </button>
     `;
 
+    
+
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
+
+    cargarArticulosDescuento(productosPedidos)
+
+    document.getElementById("descuento-articulos-input").value = "";
 
     modal.addEventListener("click", (e) => {
       if (e.target === modal) modal.style.display = "none";
     });
   } else {
-    document.getElementById("ocultar-precios-check").checked = false;
-    document.getElementById("porcentaje-input").value = "";
-    document.getElementById("efectivo-input").value = "";
-    document.getElementById("observaciones-input").value = "";
-    modal.style.display = "flex";
-  }
+  document.getElementById("ocultar-precios-check").checked = false;
+  document.getElementById("porcentaje-input").value = "";
+  document.getElementById("efectivo-input").value = "";
+  document.getElementById("observaciones-input").value = "";
+  document.getElementById("descuento-articulos-input").value = ""; // 👈 ESTA
+  cargarArticulosDescuento(productosPedidos);
+  modal.style.display = "flex";
+}
+
+  function cargarArticulosDescuento(productosPedidos) {
+  const contenedor = document.getElementById("articulos-descuento");
+  if (!contenedor) return;
+
+  contenedor.innerHTML = "";
+
+  const articulosOrdenados = Object.values(productosPedidos)
+    .filter((d) => d?.producto && d.cantidad > 0)
+    .map((d) => d.producto)
+    .sort((a, b) => a.localeCompare(b, "es"));
+
+  articulosOrdenados.forEach((producto) => {
+    const label = document.createElement("label");
+    label.style.display = "flex";
+    label.style.alignItems = "center";
+    label.style.gap = "8px";
+    label.style.marginBottom = "4px";
+    label.style.cursor = "pointer";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = producto;
+
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(producto));
+    contenedor.appendChild(label);
+  });
+}
+
 
   const generarBtn = document.getElementById("generar-remito-final");
   generarBtn.onclick = () => {
@@ -595,6 +814,19 @@ function mostrarModalRemito({
     const observaciones = document
       .getElementById("observaciones-input")
       .value.trim();
+    const descuentoArticulosPorcentaje =
+      parseFloat(document.getElementById("descuento-articulos-input").value) ||
+      0;
+
+    const modalContent = document.querySelector(
+      "#configuracion-remito-modal > div",
+    );
+
+    const articulosSeleccionados = Array.from(
+      modalContent.querySelectorAll(
+        "#articulos-descuento input[type='checkbox']:checked",
+      ),
+    ).map((chk) => chk.value);
 
     modal.style.display = "none";
 
@@ -610,6 +842,8 @@ function mostrarModalRemito({
       observaciones,
       idsData,
       empresaData, // <--- Pasamos los datos de la empresa elegida
+      descuentoArticulosPorcentaje,
+      articulosSeleccionados,
     });
   };
 }
@@ -630,10 +864,12 @@ async function drawRemito(
     ocultarPrecios,
     descuentoPorcentaje = 0,
     descuentoEfectivo = 0,
+    descuentoArticulosPorcentaje = 0,
+    articulosSeleccionados = [],
     observaciones,
     flete = 0,
     idsData,
-    empresaData, // <--- Recibimos el objeto de la empresa
+    empresaData,
   },
 ) {
   const nombreCliente = data.Nombre || "-";
@@ -675,7 +911,7 @@ async function drawRemito(
   y = 20;
   docPDF.setFont("helvetica", "bold");
   docPDF.setFontSize(14);
-  docPDF.text(`REMITO - COPIA ${tipoCopia}`, pageWidth - 10, y, {
+  docPDF.text(`NOTA DE PEDIDO - COPIA ${tipoCopia}`, pageWidth - 10, y, {
     align: "right",
   });
   y += 8;
@@ -746,7 +982,7 @@ async function drawRemito(
 
     y += 7;
     let totalGrupo = 0;
-    const rowSpacing = 5;
+    const rowSpacing = 8;
     const maxY = 280;
 
     items.forEach((prod) => {
@@ -758,12 +994,18 @@ async function drawRemito(
 
       totalGrupo += total;
 
-      const precioUnitario = preciosData[prod] ?? 0;
+      let precioUnitario = preciosData[prod] ?? 0;
+
+      // 🔥 DESCUENTO SOLO A LOS ARTÍCULOS SELECCIONADOS
+      if (
+        descuentoArticulosPorcentaje > 0 &&
+        articulosSeleccionados.includes(prod)
+      ) {
+        precioUnitario *= 1 - descuentoArticulosPorcentaje / 100;
+      }
+
       const precioTotal = total * precioUnitario;
-
-      // Acumular en subtotal (si tenemos precios)
       subtotal += precioTotal;
-
       const idProducto = idsData[prod] || "SIN-ID";
 
       // Cantidad en negrita
@@ -775,7 +1017,28 @@ async function drawRemito(
       docPDF.setFont("helvetica", "normal");
       docPDF.text(`-  ${prod.charAt(0).toUpperCase() + prod.slice(1)}`, 18, y);
 
+      if (
+        descuentoArticulosPorcentaje > 0 &&
+        articulosSeleccionados.includes(prod)
+      ) {
+        docPDF.setFont("helvetica", "italic");
+        docPDF.setFontSize(8);
+        docPDF.setTextColor(120); // gris suave
+
+        docPDF.text(
+          `tiene ${descuentoArticulosPorcentaje}% de descuento`,
+          22,
+          y + 4,
+        );
+
+        docPDF.setTextColor(0);
+      }
+
       if (!ocultarPrecios) {
+        // 🔒 asegurar tamaño normal del precio
+        docPDF.setFont("helvetica", "normal");
+        docPDF.setFontSize(11);
+
         docPDF.text(`$${precioTotal.toFixed(2)}`, pageWidth - 10, y, {
           align: "right",
         });
@@ -795,7 +1058,6 @@ async function drawRemito(
 
   // --- TOTALES Y OPCIONALES ---
   y += 5;
-  
 
   // Si ocultamos precios, mostramos como antes (total de unidades)
   const totalProductos = Object.values(productosPedidos).reduce(
@@ -874,14 +1136,14 @@ async function drawRemito(
 
   // --- PIE DE PÁGINA (FIRMAS) ---
   const pageHeight = docPDF.internal.pageSize.getHeight();
-const footerY = pageHeight - 25; // margen inferior seguro
+  const footerY = pageHeight - 25; // margen inferior seguro
 
-docPDF.setFont("helvetica", "normal");
-docPDF.setFontSize(8);
+  docPDF.setFont("helvetica", "normal");
+  docPDF.setFontSize(8);
 
-docPDF.text("Recibí(mos) Conforme", 10, footerY);
-docPDF.text("Firma: ____________________", pageWidth - 70, footerY);
-docPDF.text("Aclaración: ________________", pageWidth - 70, footerY + 5);
+  docPDF.text("Recibí(mos) Conforme", 10, footerY);
+  docPDF.text("Firma: ____________________", pageWidth - 70, footerY);
+  docPDF.text("Aclaración: ________________", pageWidth - 70, footerY + 5);
 
   // Observaciones
   if (observaciones) {
@@ -908,6 +1170,8 @@ async function _generarRemitoFinal({
   ocultarPrecios,
   descuentoPorcentaje,
   descuentoEfectivo,
+  descuentoArticulosPorcentaje,
+  articulosSeleccionados,
   observaciones,
   idsData,
   empresaData,
@@ -949,6 +1213,8 @@ async function _generarRemitoFinal({
       ocultarPrecios,
       descuentoPorcentaje,
       descuentoEfectivo,
+      descuentoArticulosPorcentaje,
+      articulosSeleccionados,
       observaciones,
       idsData,
       empresaData,
