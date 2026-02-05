@@ -66,6 +66,8 @@ const nombreClienteAdvertencia = document.getElementById(
 const btnGuardarForzadoCliente = document.getElementById("btn-guardar-forzado");
 const btnCancelarModalCliente = document.getElementById("btn-cancelar-modal");
 const totalGeneralSpan = document.getElementById("total-general");
+const localInput = document.getElementById("local");
+
 
 // Desactivar validación nativa que bloquea el 0.5 cuando el step es 1
 if (formulario) formulario.setAttribute("novalidate", "");
@@ -108,34 +110,78 @@ async function cargarPrecios() {
 async function precargarClientes() {
   try {
     const snap = await getDocs(collection(db, "Clientes"));
-    clientesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    clientesCache = snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    }));
+
+    clientesInfo = {};
+    clientesCache.forEach((c) => {
+      clientesInfo[c.id] = c;
+    });
+
   } catch (error) {
     console.error("Error cargando clientes:", error);
   }
 }
 
-nombreInput.addEventListener("input", (e) => {
+
+function crearDatalist(id, input) {
+  let dl = document.getElementById(id) || document.createElement("datalist");
+  dl.id = id;
+  document.body.appendChild(dl);
+  input.setAttribute("list", id);
+  return dl;
+}
+
+const datalistNombre = crearDatalist("clientes-nombre-dl", nombreInput);
+const datalistLocal = crearDatalist("clientes-local-dl", localInput);
+
+
+localInput.addEventListener("input", (e) => {
   const texto = e.target.value.toLowerCase().trim();
-  datalistClientes.innerHTML = "";
+  datalistLocal.innerHTML = "";
   if (texto.length < 2) return;
-  const filtrados = clientesCache.filter((c) =>
-    c.id.toLowerCase().includes(texto),
+
+  clientesCache
+    .filter((c) => (c.Local || "").toLowerCase().includes(texto))
+    .forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c.Local;
+      datalistLocal.appendChild(opt);
+    });
+});
+localInput.addEventListener("change", () => {
+  const cliente = clientesCache.find(
+    (c) => c.Local === localInput.value
   );
-  filtrados.forEach((c) => {
-    const option = document.createElement("option");
-    option.value = c.id;
-    datalistClientes.appendChild(option);
-    clientesInfo[c.id] = {
-      Direccion: c.Direccion || "----",
-      Local: c.Local || "----",
-      Localidad: c.Localidad || "----",
-    };
-  });
+  if (!cliente) return;
+
+  nombreInput.value = cliente.id;
+  localidadInput.value = cliente.Localidad || "";
 });
 
-nombreInput.addEventListener("change", (e) => {
-  const data = clientesInfo[e.target.value.trim()];
-  if (data) localidadInput.value = data.Localidad;
+
+nombreInput.addEventListener("change", () => {
+  const cliente = clientesCache.find((c) => c.id === nombreInput.value);
+  if (!cliente) return;
+
+  localInput.value = cliente.Local || "";
+  localidadInput.value = cliente.Localidad || "";
+});
+
+nombreInput.addEventListener("input", (e) => {
+  const texto = e.target.value.toLowerCase().trim();
+  datalistNombre.innerHTML = "";
+  if (texto.length < 2) return;
+
+  clientesCache
+    .filter((c) => c.id.toLowerCase().includes(texto))
+    .forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      datalistNombre.appendChild(opt);
+    });
 });
 
 function crearPanelColeccion(nombreColeccion, titulo) {
