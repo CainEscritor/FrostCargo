@@ -10,7 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 const categorias = ["Ingrese categoría", "Remito", "Factura"];
-const vendedores = ["Seleccione vendedor", "Betty", "Alberto", "Ariel"];
+const vendedores = ["Seleccione vendedor", "Betty", "Alberto", "Ariel", "Martín", "Depósito"];
 
 const colecciones = [
   "StockCarnicos",
@@ -68,7 +68,6 @@ const btnCancelarModalCliente = document.getElementById("btn-cancelar-modal");
 const totalGeneralSpan = document.getElementById("total-general");
 const localInput = document.getElementById("local");
 
-
 // Desactivar validación nativa que bloquea el 0.5 cuando el step es 1
 if (formulario) formulario.setAttribute("novalidate", "");
 
@@ -119,12 +118,10 @@ async function precargarClientes() {
     clientesCache.forEach((c) => {
       clientesInfo[c.id] = c;
     });
-
   } catch (error) {
     console.error("Error cargando clientes:", error);
   }
 }
-
 
 function crearDatalist(id, input) {
   let dl = document.getElementById(id) || document.createElement("datalist");
@@ -136,7 +133,6 @@ function crearDatalist(id, input) {
 
 const datalistNombre = crearDatalist("clientes-nombre-dl", nombreInput);
 const datalistLocal = crearDatalist("clientes-local-dl", localInput);
-
 
 localInput.addEventListener("input", (e) => {
   const texto = e.target.value.toLowerCase().trim();
@@ -152,15 +148,12 @@ localInput.addEventListener("input", (e) => {
     });
 });
 localInput.addEventListener("change", () => {
-  const cliente = clientesCache.find(
-    (c) => c.Local === localInput.value
-  );
+  const cliente = clientesCache.find((c) => c.Local === localInput.value);
   if (!cliente) return;
 
   nombreInput.value = cliente.id;
   localidadInput.value = cliente.Localidad || "";
 });
-
 
 nombreInput.addEventListener("change", () => {
   const cliente = clientesCache.find((c) => c.id === nombreInput.value);

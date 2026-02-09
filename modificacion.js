@@ -8,7 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 const categorias = ["Ingrese categoría", "Remito", "Factura"];
-const vendedores = ["Seleccione vendedor", "Betty", "Alberto", "Ariel"];
+const vendedores = ["Seleccione vendedor", "Betty", "Alberto", "Ariel", "Martín", "Depósito"];
 const coleccionesStock = [
   "StockCarnicos",
   "StockFrigorBalde",
@@ -41,6 +41,7 @@ const nombresColecciones = {
   StockOrale: "Orale",
   StockPripan: "Pripan",
   StockSwift: "Swift",
+  STOCK_NEGATIVO: "⚠️ ARTÍCULOS CON STOCK EN NEGATIVO",
 };
 
 const pedidoIdDisplay = document.getElementById("pedido-id-display");
@@ -140,11 +141,30 @@ function renderizarProductos() {
     productosEnEdicion[col].forEach((p) => {
       const fila = document.createElement("div");
       fila.className = `fila ${p.cantidadActual > 0 ? "activo" : ""}`;
-      fila.innerHTML = `<span>${p.nombre}</span><input type="number" min="0" value="${p.cantidadActual}" class="cantidad-input">`;
+      fila.innerHTML = `
+  <span>${p.nombre}</span>
+  <input
+    type="number"
+    min="0"
+    step="any"
+    inputmode="decimal"
+    value="${p.cantidadActual}"
+    class="cantidad-input"
+  >
+`;
+
       fila.querySelector("input").oninput = (e) => {
-        p.cantidadActual = parseInt(e.target.value) || 0;
-        fila.classList.toggle("activo", p.cantidadActual > 0);
-      };
+  let cant = Number(e.target.value) || 0;
+
+  // Permitimos solo X.0 o X.5 (igual que el JS de carga)
+  if (cant % 1 !== 0 && cant % 1 !== 0.5) {
+    cant = Math.floor(cant) + 0.5;
+    e.target.value = cant;
+  }
+
+  p.cantidadActual = cant;
+  fila.classList.toggle("activo", p.cantidadActual > 0);
+};
       panel.appendChild(fila);
     });
     contenedorColecciones.appendChild(panel);

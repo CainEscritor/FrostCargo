@@ -490,6 +490,47 @@ async function generarPDFRemitosFiltrados(pedidosFiltradosDocs) {
     return;
   }
 
+  // 🔹 NUEVO: Pre-cargar el stock actual de TODAS las colecciones
+  const stockSnaps = await Promise.all(
+    coleccionesStock.map((col) => getDoc(doc(db, col, "Stock"))),
+  );
+  const stocksData = {};
+  stockSnaps.forEach((snap, index) => {
+    stocksData[coleccionesStock[index]] = snap.data() || {};
+  });
+
+  // 🔹 NUEVO: Verificar conflictos de stock en todos los pedidos filtrados
+  const conflictos = [];
+  pedidosFiltradosDocs.forEach((pedidoDoc) => {
+    const data = pedidoDoc.data();
+    const nombreCliente = data.Nombre || "Sin nombre";
+    const productosPedidos = data.productos || {};
+    const articulosSinStock = [];
+
+    Object.values(productosPedidos).forEach((detalle) => {
+      if (detalle && detalle.coleccion && detalle.producto) {
+        const stockActual = stocksData[detalle.coleccion]?.[detalle.producto] || 0;
+        if (stockActual <= 0) {
+          articulosSinStock.push(detalle.producto);
+        }
+      }
+    });
+
+    if (articulosSinStock.length > 0) {
+      conflictos.push({
+        cliente: nombreCliente,
+        articulos: articulosSinStock,
+        pedidoId: pedidoDoc.id,
+      });
+    }
+  });
+
+  if (conflictos.length > 0) {
+    mostrarModalAdvertenciaStockFiltrados(conflictos);
+    return; // No proceder con la generación del PDF
+  }
+
+  // 🔹 Continuar con la lógica original si no hay conflictos
   const { jsPDF } = window.jspdf;
   const docPDF = new jsPDF({ format: "legal", unit: "mm" });
 
@@ -559,6 +600,138 @@ async function generarPDFRemitosFiltrados(pedidosFiltradosDocs) {
   );
 }
 
+// =========================================================================
+// 💡 FUNCIÓN MODAL DE ADVERTENCIA DE STOCK PARA PEDIDOS FILTRADOS
+// =========================================================================
+
+function mostrarModalAdvertenciaStockFiltrados(conflictos) {
+  let modal = document.getElementById("advertencia-stock-filtrados-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "advertencia-stock-filtrados-modal";
+
+    Object.assign(modal.style, {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      background: "rgba(0,0,0,0.7)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 9999,
+    });
+
+    const modalContent = document.createElement("div");
+
+    Object.assign(modalContent.style, {
+      background: "#fff",
+      padding: "25px",
+      borderRadius: "10px",
+      width: "500px",
+      maxHeight: "80vh",
+      overflowY: "auto",
+      boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
+      fontFamily: "Arial, sans-serif",
+      textAlign: "center",
+    });
+
+    modalContent.innerHTML = `
+      <h2 style="color: #f44336;">⚠️ Artículos con Stock Insuficiente en Pedidos Filtrados</h2>
+      <p>Los siguientes clientes tienen artículos con stock insuficiente (0 o negativo). Modificá los pedidos antes de generar los remitos:</p>
+      <div id="lista-conflictos" style="text-align: left; margin: 20px 0;"></div>
+      <button id="btn-cerrar-advertencia-filtrados" style="padding: 10px 20px; background-color: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+        Cerrar
+      </button>
+    `;
+
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+
+    // Llenar la lista de conflictos
+    const lista = document.getElementById("lista-conflictos");
+    conflictos.forEach((conflicto) => {
+      const clienteDiv = document.createElement("div");
+      clienteDiv.style.marginBottom = "15px";
+      clienteDiv.style.padding = "10px";
+      clienteDiv.style.border = "1px solid #ddd";
+      clienteDiv.style.borderRadius = "5px";
+
+      const clienteTitle = document.createElement("h3");
+      clienteTitle.textContent = conflicto.cliente;
+      clienteTitle.style.margin = "0 0 10px 0";
+      clienteTitle.style.color = "#333";
+      clienteDiv.appendChild(clienteTitle);
+
+      const articulosList = document.createElement("ul");
+      articulosList.style.paddingLeft = "20px";
+      conflicto.articulos.forEach((articulo) => {
+        const li = document.createElement("li");
+        li.textContent = articulo;
+        articulosList.appendChild(li);
+      });
+      clienteDiv.appendChild(articulosList);
+
+      const btnModificar = document.createElement("button");
+      btnModificar.textContent = "✏️ Modificar Pedido";
+      btnModificar.style.cssText = "padding: 8px 15px; background-color: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px;";
+      btnModificar.onclick = () => {
+        window.location.href = `modificacion.html?id=${conflicto.pedidoId}`;
+      };
+      clienteDiv.appendChild(btnModificar);
+
+      lista.appendChild(clienteDiv);
+    });
+
+    // Evento para cerrar
+    document.getElementById("btn-cerrar-advertencia-filtrados").onclick = () => {
+      modal.style.display = "none";
+    };
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.style.display = "none";
+    });
+  } else {
+    // Si el modal ya existe, actualizar la lista y mostrar
+    const lista = document.getElementById("lista-conflictos");
+    lista.innerHTML = "";
+    conflictos.forEach((conflicto) => {
+      const clienteDiv = document.createElement("div");
+      clienteDiv.style.marginBottom = "15px";
+      clienteDiv.style.padding = "10px";
+      clienteDiv.style.border = "1px solid #ddd";
+      clienteDiv.style.borderRadius = "5px";
+
+      const clienteTitle = document.createElement("h3");
+      clienteTitle.textContent = conflicto.cliente;
+      clienteTitle.style.margin = "0 0 10px 0";
+      clienteTitle.style.color = "#333";
+      clienteDiv.appendChild(clienteTitle);
+
+      const articulosList = document.createElement("ul");
+      articulosList.style.paddingLeft = "20px";
+      conflicto.articulos.forEach((articulo) => {
+        const li = document.createElement("li");
+        li.textContent = articulo;
+        articulosList.appendChild(li);
+      });
+      clienteDiv.appendChild(articulosList);
+
+      const btnModificar = document.createElement("button");
+      btnModificar.textContent = "✏️ Modificar Pedido";
+      btnModificar.style.cssText = "padding: 8px 15px; background-color: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px;";
+      btnModificar.onclick = () => {
+        window.location.href = `modificacion.html?id=${conflicto.pedidoId}`;
+      };
+      clienteDiv.appendChild(btnModificar);
+
+      lista.appendChild(clienteDiv);
+    });
+    modal.style.display = "flex";
+  }
+}
+
 
 // -------------------------------------------------------------------
 // ## Generar PDF (Remito Individual)
@@ -579,7 +752,35 @@ window.generarPDF = async function (pedidoId) {
       return;
     }
 
-    const data = pedidoSnap.data(); // NEW: seleccionar la colección de precios según data.categoria
+    const data = pedidoSnap.data();
+
+    // 🔹 NUEVO: Pre-cargar el stock actual de TODAS las colecciones
+    const stockSnaps = await Promise.all(
+      coleccionesStock.map((col) => getDoc(doc(db, col, "Stock"))),
+    );
+    const stocksData = {};
+    stockSnaps.forEach((snap, index) => {
+      stocksData[coleccionesStock[index]] = snap.data() || {};
+    });
+
+    // 🔹 NUEVO: Verificar si algún artículo tiene stock <= 0
+    const productosPedidos = data.productos || {};
+    const articulosSinStock = [];
+    Object.values(productosPedidos).forEach((detalle) => {
+      if (detalle && detalle.coleccion && detalle.producto) {
+        const stockActual = stocksData[detalle.coleccion]?.[detalle.producto] || 0;
+        if (stockActual <= 0) {
+          articulosSinStock.push(detalle.producto);
+        }
+      }
+    });
+
+    if (articulosSinStock.length > 0) {
+      mostrarModalAdvertenciaStock(articulosSinStock, pedidoId);
+      return; // No proceder con el modal
+    }
+
+    // NEW: seleccionar la colección de precios según data.categoria
     function coleccionPreciosParaCategoria(categoria) {
       if (!categoria) return "PreciosExpress";
       const c = categoria.toString().toLowerCase().trim();
@@ -606,7 +807,6 @@ window.generarPDF = async function (pedidoId) {
 
     const preciosSnap = await getDoc(doc(db, "Precios", "Precio"));
     const preciosData = preciosSnap.exists() ? preciosSnap.data() : {}; // 2. Clasificar artículos del pedido
-    const productosPedidos = data.productos || {};
     const grupos = {};
     coleccionesStock.forEach((col) => (grupos[col] = [])); // Llenar los grupos (ej. grupos["StockCarnicos"] = ["Asado", "Chorizo"])
 
@@ -633,6 +833,94 @@ window.generarPDF = async function (pedidoId) {
     alert("Error inicializando PDF ❌ Revisa la consola.");
   }
 };
+
+// =========================================================================
+// 💡 FUNCIÓN MODAL DE ADVERTENCIA DE STOCK
+// =========================================================================
+
+function mostrarModalAdvertenciaStock(articulosSinStock, pedidoId) {
+  let modal = document.getElementById("advertencia-stock-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "advertencia-stock-modal";
+
+    Object.assign(modal.style, {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      background: "rgba(0,0,0,0.7)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 9999,
+    });
+
+    const modalContent = document.createElement("div");
+
+    Object.assign(modalContent.style, {
+      background: "#fff",
+      padding: "25px",
+      borderRadius: "10px",
+      width: "400px",
+      maxHeight: "80vh",
+      overflowY: "auto",
+      boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
+      fontFamily: "Arial, sans-serif",
+      textAlign: "center",
+    });
+
+    modalContent.innerHTML = `
+      <h2 style="color: #f44336;">⚠️ Artículos con Stock Insuficiente</h2>
+      <p>Los siguientes artículos tienen stock insuficiente (0 o negativo) y no se puede generar el PDF:</p>
+      <ul id="lista-articulos-sin-stock" style="text-align: left; margin: 20px 0; padding-left: 20px;"></ul>
+      <p>Modificá el pedido para corregir el stock antes de generar el PDF.</p>
+      <div style="display: flex; justify-content: space-around; margin-top: 20px;">
+        <button id="btn-modificar-pedido" style="padding: 10px 20px; background-color: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+          ✏️ Modificar Pedido
+        </button>
+        <button id="btn-cerrar-advertencia" style="padding: 10px 20px; background-color: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+          Cerrar
+        </button>
+      </div>
+    `;
+
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+
+    // Llenar la lista de artículos
+    const lista = document.getElementById("lista-articulos-sin-stock");
+    articulosSinStock.forEach((articulo) => {
+      const li = document.createElement("li");
+      li.textContent = articulo;
+      lista.appendChild(li);
+    });
+
+    // Eventos de botones
+    document.getElementById("btn-modificar-pedido").onclick = () => {
+      window.location.href = `modificacion.html?id=${pedidoId}`;
+    };
+
+    document.getElementById("btn-cerrar-advertencia").onclick = () => {
+      modal.style.display = "none";
+    };
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.style.display = "none";
+    });
+  } else {
+    // Si el modal ya existe, actualizar la lista y mostrar
+    const lista = document.getElementById("lista-articulos-sin-stock");
+    lista.innerHTML = "";
+    articulosSinStock.forEach((articulo) => {
+      const li = document.createElement("li");
+      li.textContent = articulo;
+      lista.appendChild(li);
+    });
+    modal.style.display = "flex";
+  }
+}
 
 // =========================================================================
 // 💡 FUNCIÓN MODAL DE CONFIGURACIÓN (Remito Individual)
@@ -1453,9 +1741,29 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
     return;
   }
 
-  // 2. Clasificar los artículos acumulados por grupo de stock
+  // 🔹 NUEVO: Pre-cargar el stock actual de TODAS las colecciones
+  const stockSnaps = await Promise.all(
+    coleccionesStock.map((col) => getDoc(doc(db, col, "Stock"))),
+  );
+  const stocksData = {};
+  stockSnaps.forEach((snap, index) => {
+    stocksData[coleccionesStock[index]] = snap.data() || {};
+  });
+
+  // 🔹 NUEVO: Verificar stock y reagrupar artículos con stock negativo o cero
+  Object.values(articulosAcumulados).forEach((item) => {
+    const stockActual = stocksData[item.coleccion]?.[item.producto] || 0;
+    if (stockActual <= 0) {
+      item.coleccion = "ARTICULOS CON STOCK NEGATIVO"; // Reagrupar en nueva categoría
+    }
+  });
+
+  // 2. Clasificar los artículos acumulados por grupo de stock (incluyendo la nueva categoría)
   const gruposAcumulados = {};
+  // Inicializar con las colecciones estándar
   coleccionesStock.forEach((col) => (gruposAcumulados[col] = []));
+  // Agregar la nueva categoría
+  gruposAcumulados["ARTICULOS CON STOCK NEGATIVO"] = [];
 
   Object.values(articulosAcumulados).forEach((item) => {
     if (gruposAcumulados.hasOwnProperty(item.coleccion)) {
@@ -1467,7 +1775,7 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
   const { jsPDF } = window.jspdf;
   const docPDF = new jsPDF({ format: "a4", unit: "mm" });
 
-  // 🔹 Cargar IDs de productos (FALTABA ESTO)
+  // 🔹 Cargar IDs de productos
   const idsSnap = await getDoc(doc(db, "idProductos", "idProducto"));
   const idsData = idsSnap.exists() ? idsSnap.data() : {};
 
@@ -1560,8 +1868,8 @@ async function drawResumenPDF(
 
   let totalGeneralUnidades = 0;
 
-  // Iterar sobre colecciones
-  coleccionesStock.forEach((col) => {
+  // 🔹 CAMBIO: Iterar sobre todas las claves de gruposAcumulados (incluyendo la nueva categoría)
+  Object.keys(gruposAcumulados).forEach((col) => {
     const items = gruposAcumulados[col];
     if (!items || items.length === 0) return;
 
@@ -1608,7 +1916,7 @@ async function drawResumenPDF(
 
       y += 5;
 
-      // --- CAMBIO AQUÍ: Lista de Clientes en Horizontal ---
+      // --- Lista de Clientes en Horizontal ---
       docPDF.setFont("helvetica", "italic");
       docPDF.setFontSize(9);
       docPDF.setTextColor(70, 70, 70);
@@ -1643,6 +1951,6 @@ async function drawResumenPDF(
     `TOTAL GENERAL DE UNIDADES: ${totalGeneralUnidades}`,
     pageWidth - 10,
     y,
-    { align: "right" },
+    { align: "right" }
   );
 }
