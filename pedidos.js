@@ -100,25 +100,22 @@ function renderBotonResumen(pedidosFiltradosFinales) {
   btnResumen.style.cssText =
     "background-color: #ff9800; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;";
 
-  btnResumen.onclick = () =>
-    generarPDFAcumulado(pedidosFiltradosFinales);
-  
+  btnResumen.onclick = () => generarPDFAcumulado(pedidosFiltradosFinales);
 
   // 🔵 BOTÓN SOLO REMITOS
   const btnRemitos = document.createElement("button");
-btnRemitos.textContent = "📄 PDF REMITOS FILTRADOS";
-btnRemitos.style.cssText =
-  "background:#2196f3;color:white;padding:12px;border:none;border-radius:8px;font-weight:bold;";
-btnRemitos.onclick = () =>
-  generarPDFRemitosFiltrados(pedidosFiltradosFinales);
+  btnRemitos.textContent = "📄 PDF REMITOS FILTRADOS";
+  btnRemitos.style.cssText =
+    "background:#2196f3;color:white;padding:12px;border:none;border-radius:8px;font-weight:bold;";
+  btnRemitos.onclick = () =>
+    generarPDFRemitosFiltrados(pedidosFiltradosFinales);
 
-resumenBtnContainer.appendChild(btnRemitos);
+  resumenBtnContainer.appendChild(btnRemitos);
 
   resumenBtnContainer.appendChild(btnResumen);
   resumenBtnContainer.appendChild(btnRemitos);
   pedidosContainer.appendChild(resumenBtnContainer);
 }
-
 
 // 🟣 DOM (ANTES DE ARRANCAR FIREBASE)
 const pedidosContainer = document.getElementById("pedidosContainer");
@@ -404,17 +401,16 @@ async function guardarVenta(pedidoId, pedidoData) {
   // 💾 Guardar venta
   await setDoc(ventaRef, {
     fechaEntrega: pedidoData.fechaEntrega || "",
-    cliente: pedidoData.Nombre || "",  // Mantengo el nombre original del campo
+    cliente: pedidoData.Nombre || "", // Mantengo el nombre original del campo
     Localidad: pedidoData.Localidad || "",
-    direccion: pedidoData.Direccion || "",  // Mantengo el nombre original del campo
-    tipoDocumento: pedidoData.categoria || "",  // Mantengo el nombre original del campo
+    direccion: pedidoData.Direccion || "", // Mantengo el nombre original del campo
+    tipoDocumento: pedidoData.categoria || "", // Mantengo el nombre original del campo
     NumeroRemito: pedidoData.NumeroRemito || "",
-    total: Number(total.toFixed(2)),  // EXACTAMENTE el mismo número del PDF
+    total: Number(total.toFixed(2)), // EXACTAMENTE el mismo número del PDF
     productos: productosMap,
-    Vendedor: pedidoData.Vendedor || "",  // Campo agregado: Vendedor del pedido
+    Vendedor: pedidoData.Vendedor || "", // Campo agregado: Vendedor del pedido
   });
 }
-
 
 const EMPRESAS = {
   FROSTCARGO: {
@@ -451,12 +447,9 @@ window.generarPDFRemitos = function (pedidos) {
   y += 8;
 
   docPDF.setFontSize(10);
-  docPDF.text(
-    `Generado: ${new Date().toLocaleDateString("es-AR")}`,
-    105,
-    y,
-    { align: "center" },
-  );
+  docPDF.text(`Generado: ${new Date().toLocaleDateString("es-AR")}`, 105, y, {
+    align: "center",
+  });
   y += 10;
 
   const filas = [];
@@ -491,9 +484,7 @@ window.generarPDFRemitos = function (pedidos) {
     headStyles: { fillColor: [33, 150, 243] },
   });
 
-  docPDF.save(
-    `Remitos_${new Date().toISOString().slice(0, 10)}.pdf`,
-  );
+  docPDF.save(`Remitos_${new Date().toISOString().slice(0, 10)}.pdf`);
 };
 
 async function generarPDFRemitosFiltrados(pedidosFiltradosDocs) {
@@ -521,7 +512,8 @@ async function generarPDFRemitosFiltrados(pedidosFiltradosDocs) {
 
     Object.values(productosPedidos).forEach((detalle) => {
       if (detalle && detalle.coleccion && detalle.producto) {
-        const stockActual = stocksData[detalle.coleccion]?.[detalle.producto] || 0;
+        const stockActual =
+          stocksData[detalle.coleccion]?.[detalle.producto] || 0;
         if (stockActual <= 0) {
           articulosSinStock.push(detalle.producto);
         }
@@ -607,9 +599,7 @@ async function generarPDFRemitosFiltrados(pedidosFiltradosDocs) {
     await drawRemito(docPDF, logoImg, "DUPLICADO", options);
   }
 
-  docPDF.save(
-    `Remitos_${new Date().toISOString().slice(0, 10)}.pdf`,
-  );
+  docPDF.save(`Remitos_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 // =========================================================================
@@ -687,7 +677,8 @@ function mostrarModalAdvertenciaStockFiltrados(conflictos) {
 
       const btnModificar = document.createElement("button");
       btnModificar.textContent = "✏️ Modificar Pedido";
-      btnModificar.style.cssText = "padding: 8px 15px; background-color: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px;";
+      btnModificar.style.cssText =
+        "padding: 8px 15px; background-color: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px;";
       btnModificar.onclick = () => {
         window.location.href = `modificacion.html?id=${conflicto.pedidoId}`;
       };
@@ -697,9 +688,10 @@ function mostrarModalAdvertenciaStockFiltrados(conflictos) {
     });
 
     // Evento para cerrar
-    document.getElementById("btn-cerrar-advertencia-filtrados").onclick = () => {
-      modal.style.display = "none";
-    };
+    document.getElementById("btn-cerrar-advertencia-filtrados").onclick =
+      () => {
+        modal.style.display = "none";
+      };
 
     modal.addEventListener("click", (e) => {
       if (e.target === modal) modal.style.display = "none";
@@ -732,7 +724,8 @@ function mostrarModalAdvertenciaStockFiltrados(conflictos) {
 
       const btnModificar = document.createElement("button");
       btnModificar.textContent = "✏️ Modificar Pedido";
-      btnModificar.style.cssText = "padding: 8px 15px; background-color: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px;";
+      btnModificar.style.cssText =
+        "padding: 8px 15px; background-color: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px;";
       btnModificar.onclick = () => {
         window.location.href = `modificacion.html?id=${conflicto.pedidoId}`;
       };
@@ -743,7 +736,6 @@ function mostrarModalAdvertenciaStockFiltrados(conflictos) {
     modal.style.display = "flex";
   }
 }
-
 
 // -------------------------------------------------------------------
 // ## Generar PDF (Remito Individual)
@@ -778,77 +770,67 @@ window.generarPDF = async function (pedidoId) {
     // 🔹 NUEVO: Verificar si algún artículo tiene stock <= 0
     const productosPedidos = data.productos || {};
     const articulosStockCero = [];
-const articulosStockNegativo = [];
+    const articulosStockNegativo = [];
 
-Object.values(productosPedidos).forEach((detalle) => {
-  if (detalle && detalle.coleccion && detalle.producto) {
-    const stockActual = stocksData[detalle.coleccion]?.[detalle.producto] ?? 0;
+    Object.values(productosPedidos).forEach((detalle) => {
+      if (detalle && detalle.coleccion && detalle.producto) {
+        const stockActual =
+          stocksData[detalle.coleccion]?.[detalle.producto] ?? 0;
 
-    if (stockActual < 0) {
-      articulosStockNegativo.push(detalle.producto);
-    } else if (stockActual === 0) {
-      articulosStockCero.push(detalle.producto);
+        if (stockActual < 0) {
+          articulosStockNegativo.push(detalle.producto);
+        } else if (stockActual === 0) {
+          articulosStockCero.push(detalle.producto);
+        }
+      }
+    });
+
+    // 🔴 Si hay stock negativo → bloquear
+    if (articulosStockNegativo.length > 0) {
+      mostrarModalStockNegativo(articulosStockNegativo, pedidoId);
+      return;
     }
-  }
-});
 
-// 🔴 Si hay stock negativo → bloquear
-if (articulosStockNegativo.length > 0) {
-  mostrarModalStockNegativo(articulosStockNegativo, pedidoId);
-  return;
-}
-
-// 🟡 Si hay stock 0 → advertir pero permitir continuar
-if (articulosStockCero.length > 0) {
-  await mostrarModalStockCero(articulosStockCero);
-}
-
-// 🔴 Si hay stock negativo → bloquear
-if (articulosStockNegativo.length > 0) {
-  mostrarModalAdvertenciaStockNegativo(articulosStockNegativo, pedidoId);
-  return;
-}
-
-// 🟡 Si solo hay stock 0 → advertir pero continuar
-if (articulosStockCero.length > 0) {
-  mostrarModalAdvertenciaStockCero(articulosStockCero);
-}
+    // 🟡 Si hay stock 0 → advertir pero permitir continuar
+    if (articulosStockCero.length > 0) {
+      await mostrarModalStockCero(articulosStockCero);
+    }
 
     function mostrarModalStockNegativo(articulos, pedidoId) {
-  let modal = document.createElement("div");
+      let modal = document.createElement("div");
 
-  Object.assign(modal.style, {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    background: "rgba(0,0,0,0.7)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 9999,
-  });
+      Object.assign(modal.style, {
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        background: "rgba(0,0,0,0.7)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 9999,
+      });
 
-  const modalContent = document.createElement("div");
+      const modalContent = document.createElement("div");
 
-  Object.assign(modalContent.style, {
-    background: "#fff",
-    padding: "25px",
-    borderRadius: "10px",
-    width: "400px",
-    maxHeight: "80vh",
-    overflowY: "auto",
-    boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
-    fontFamily: "Arial, sans-serif",
-    textAlign: "center",
-  });
+      Object.assign(modalContent.style, {
+        background: "#fff",
+        padding: "25px",
+        borderRadius: "10px",
+        width: "400px",
+        maxHeight: "80vh",
+        overflowY: "auto",
+        boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
+        fontFamily: "Arial, sans-serif",
+        textAlign: "center",
+      });
 
-  modalContent.innerHTML = `
+      modalContent.innerHTML = `
     <h2 style="color:#f44336;">⛔ Stock Negativo Detectado</h2>
     <p>No se puede generar el PDF.</p>
     <ul style="text-align:left; margin:20px 0; padding-left:20px;">
-      ${articulos.map(a => `<li>${a}</li>`).join("")}
+      ${articulos.map((a) => `<li>${a}</li>`).join("")}
     </ul>
     <button id="btn-ir-editar" style="
       padding:10px 20px;
@@ -862,54 +844,54 @@ if (articulosStockCero.length > 0) {
     </button>
   `;
 
-  modal.appendChild(modalContent);
-  document.body.appendChild(modal);
+      modal.appendChild(modalContent);
+      document.body.appendChild(modal);
 
-  document.getElementById("btn-ir-editar").onclick = () => {
-    window.location.href = `modificacion.html?id=${pedidoId}`;
-  };
+      document.getElementById("btn-ir-editar").onclick = () => {
+        window.location.href = `modificacion.html?id=${pedidoId}`;
+      };
 
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) modal.remove();
-  });
-}
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) modal.remove();
+      });
+    }
 
-function mostrarModalStockCero(articulos) {
-  return new Promise((resolve) => {
-    let modal = document.createElement("div");
+    function mostrarModalStockCero(articulos) {
+      return new Promise((resolve) => {
+        let modal = document.createElement("div");
 
-    Object.assign(modal.style, {
-      position: "fixed",
-      top: 0,
-      left: 0,
-      width: "100%",
-      height: "100%",
-      background: "rgba(0,0,0,0.7)",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      zIndex: 9999,
-    });
+        Object.assign(modal.style, {
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          background: "rgba(0,0,0,0.7)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 9999,
+        });
 
-    const modalContent = document.createElement("div");
+        const modalContent = document.createElement("div");
 
-    Object.assign(modalContent.style, {
-      background: "#fff",
-      padding: "25px",
-      borderRadius: "10px",
-      width: "400px",
-      maxHeight: "80vh",
-      overflowY: "auto",
-      boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
-      fontFamily: "Arial, sans-serif",
-      textAlign: "center",
-    });
+        Object.assign(modalContent.style, {
+          background: "#fff",
+          padding: "25px",
+          borderRadius: "10px",
+          width: "400px",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
+          fontFamily: "Arial, sans-serif",
+          textAlign: "center",
+        });
 
-    modalContent.innerHTML = `
+        modalContent.innerHTML = `
       <h2 style="color:#ff9800;">⚠️ Stock en 0</h2>
       <p>Los siguientes artículos tienen stock 0:</p>
       <ul style="text-align:left; margin:20px 0; padding-left:20px;">
-        ${articulos.map(a => `<li>${a}</li>`).join("")}
+        ${articulos.map((a) => `<li>${a}</li>`).join("")}
       </ul>
       <div style="display:flex; justify-content:space-around;">
         <button id="btn-continuar" style="
@@ -936,25 +918,23 @@ function mostrarModalStockCero(articulos) {
       </div>
     `;
 
-    modal.appendChild(modalContent);
-    document.body.appendChild(modal);
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
 
-    document.getElementById("btn-continuar").onclick = () => {
-      modal.remove();
-      resolve();
-    };
+        document.getElementById("btn-continuar").onclick = () => {
+          modal.remove();
+          resolve();
+        };
 
-    document.getElementById("btn-cancelar").onclick = () => {
-      modal.remove();
-    };
+        document.getElementById("btn-cancelar").onclick = () => {
+          modal.remove();
+        };
 
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.remove();
-    });
-  });
-}
-
-
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) modal.remove();
+        });
+      });
+    }
 
     // NEW: seleccionar la colección de precios según data.categoria
     function coleccionPreciosParaCategoria(categoria) {
@@ -1210,12 +1190,10 @@ function mostrarModalRemito({
       </button>
     `;
 
-    
-
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
 
-    cargarArticulosDescuento(productosPedidos)
+    cargarArticulosDescuento(productosPedidos);
 
     document.getElementById("descuento-articulos-input").value = "";
 
@@ -1223,44 +1201,43 @@ function mostrarModalRemito({
       if (e.target === modal) modal.style.display = "none";
     });
   } else {
-  document.getElementById("ocultar-precios-check").checked = false;
-  document.getElementById("porcentaje-input").value = "";
-  document.getElementById("efectivo-input").value = "";
-  document.getElementById("observaciones-input").value = "";
-  document.getElementById("descuento-articulos-input").value = ""; // 👈 ESTA
-  cargarArticulosDescuento(productosPedidos);
-  modal.style.display = "flex";
-}
+    document.getElementById("ocultar-precios-check").checked = false;
+    document.getElementById("porcentaje-input").value = "";
+    document.getElementById("efectivo-input").value = "";
+    document.getElementById("observaciones-input").value = "";
+    document.getElementById("descuento-articulos-input").value = ""; // 👈 ESTA
+    cargarArticulosDescuento(productosPedidos);
+    modal.style.display = "flex";
+  }
 
   function cargarArticulosDescuento(productosPedidos) {
-  const contenedor = document.getElementById("articulos-descuento");
-  if (!contenedor) return;
+    const contenedor = document.getElementById("articulos-descuento");
+    if (!contenedor) return;
 
-  contenedor.innerHTML = "";
+    contenedor.innerHTML = "";
 
-  const articulosOrdenados = Object.values(productosPedidos)
-    .filter((d) => d?.producto && d.cantidad > 0)
-    .map((d) => d.producto)
-    .sort((a, b) => a.localeCompare(b, "es"));
+    const articulosOrdenados = Object.values(productosPedidos)
+      .filter((d) => d?.producto && d.cantidad > 0)
+      .map((d) => d.producto)
+      .sort((a, b) => a.localeCompare(b, "es"));
 
-  articulosOrdenados.forEach((producto) => {
-    const label = document.createElement("label");
-    label.style.display = "flex";
-    label.style.alignItems = "center";
-    label.style.gap = "8px";
-    label.style.marginBottom = "4px";
-    label.style.cursor = "pointer";
+    articulosOrdenados.forEach((producto) => {
+      const label = document.createElement("label");
+      label.style.display = "flex";
+      label.style.alignItems = "center";
+      label.style.gap = "8px";
+      label.style.marginBottom = "4px";
+      label.style.cursor = "pointer";
 
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.value = producto;
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = producto;
 
-    label.appendChild(checkbox);
-    label.appendChild(document.createTextNode(producto));
-    contenedor.appendChild(label);
-  });
-}
-
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(producto));
+      contenedor.appendChild(label);
+    });
+  }
 
   const generarBtn = document.getElementById("generar-remito-final");
   generarBtn.onclick = () => {
@@ -2127,6 +2104,6 @@ async function drawResumenPDF(
     `TOTAL GENERAL DE UNIDADES: ${totalGeneralUnidades}`,
     pageWidth - 10,
     y,
-    { align: "right" }
+    { align: "right" },
   );
 }
