@@ -344,14 +344,10 @@ async function guardarVenta(pedidoId, pedidoData) {
   // 📄 Documento con el mismo ID que el pedido
   const ventaRef = doc(db, "Ventas", pedidoId);
 
-  // 📅 Fecha en formato dd/mm/aaaa
-  //const fechaEntrega = new Date().toLocaleDateString("es-AR");
-
   // 🔹 Determinar colección de precios (MISMA lógica que el PDF)
   function coleccionPreciosParaCategoria(categoria) {
     if (!categoria) return "PreciosExpress";
     const c = categoria.toString().toLowerCase().trim();
-
     const mapa = {
       express: "PreciosExpress",
       store: "PreciosStore",
@@ -370,39 +366,55 @@ async function guardarVenta(pedidoId, pedidoData) {
     pedidoData.categoria,
   );
 
-  // 📥 Leer precios reales
+  // 📥 (Se mantiene por compatibilidad futura)
   const preciosSnap = await getDoc(doc(db, "Precios", "Precio"));
   const preciosData = preciosSnap.exists() ? preciosSnap.data() : {};
+
+  // 🆔 🔹 LEER IDs DE PRODUCTOS (UNA SOLA VEZ)
+  const idProductosSnap = await getDoc(doc(db, "idProductos", "idProducto"));
+  const idProductosData = idProductosSnap.exists()
+    ? idProductosSnap.data()
+    : {};
 
   const productos = pedidoData.productos || {};
   const productosMap = {};
   let total = 0;
 
   // 🔁 MISMO cálculo que el PDF
-  Object.values(productos).forEach((detalle) => {
-    if (!detalle || !detalle.producto) return;
+  for (const detalle of Object.values(productos)) {
+    if (!detalle || !detalle.producto) continue;
 
-    const cantidad = detalle.cantidad || 0;
-    const precioUnitario = preciosData[detalle.producto] || 0;
+    const cantidad = Number(detalle.cantidad || 0);
+    const precioUnitario = Number(detalle.precio || 0);
 
     if (cantidad > 0) {
       total += cantidad * precioUnitario;
-      productosMap[detalle.producto] = cantidad;
+
+      // 🔹 Obtener ID desde el documento idProductos/idProducto
+      const idProducto = idProductosData[detalle.producto] || null;
+
+      productosMap[detalle.producto] = {
+        cantidad,
+        precio: precioUnitario,
+        id: idProducto,
+      };
     }
-  });
+  }
 
   // 💾 Guardar venta
   await setDoc(ventaRef, {
     fechaEntrega: pedidoData.fechaEntrega || "",
-    cliente: pedidoData.Nombre || "",
+    cliente: pedidoData.Nombre || "",  // Mantengo el nombre original del campo
     Localidad: pedidoData.Localidad || "",
-    direccion: pedidoData.Direccion || "",
-    tipoDocumento: pedidoData.categoria || "", // factura / remito
+    direccion: pedidoData.Direccion || "",  // Mantengo el nombre original del campo
+    tipoDocumento: pedidoData.categoria || "",  // Mantengo el nombre original del campo
     NumeroRemito: pedidoData.NumeroRemito || "",
-    total: Number(total.toFixed(2)), // EXACTAMENTE el mismo número del PDF
+    total: Number(total.toFixed(2)),  // EXACTAMENTE el mismo número del PDF
     productos: productosMap,
+    Vendedor: pedidoData.Vendedor || "",  // Campo agregado: Vendedor del pedido
   });
 }
+
 
 const EMPRESAS = {
   FROSTCARGO: {
@@ -765,20 +777,184 @@ window.generarPDF = async function (pedidoId) {
 
     // 🔹 NUEVO: Verificar si algún artículo tiene stock <= 0
     const productosPedidos = data.productos || {};
-    const articulosSinStock = [];
-    Object.values(productosPedidos).forEach((detalle) => {
-      if (detalle && detalle.coleccion && detalle.producto) {
-        const stockActual = stocksData[detalle.coleccion]?.[detalle.producto] || 0;
-        if (stockActual <= 0) {
-          articulosSinStock.push(detalle.producto);
-        }
-      }
+    const articulosStockCero = [];
+const articulosStockNegativo = [];
+
+Object.values(productosPedidos).forEach((detalle) => {
+  if (detalle && detalle.coleccion && detalle.producto) {
+    const stockActual = stocksData[detalle.coleccion]?.[detalle.producto] ?? 0;
+
+    if (stockActual < 0) {
+      articulosStockNegativo.push(detalle.producto);
+    } else if (stockActual === 0) {
+      articulosStockCero.push(detalle.producto);
+    }
+  }
+});
+
+// 🔴 Si hay stock negativo → bloquear
+if (articulosStockNegativo.length > 0) {
+  mostrarModalStockNegativo(articulosStockNegativo, pedidoId);
+  return;
+}
+
+// 🟡 Si hay stock 0 → advertir pero permitir continuar
+if (articulosStockCero.length > 0) {
+  await mostrarModalStockCero(articulosStockCero);
+}
+
+// 🔴 Si hay stock negativo → bloquear
+if (articulosStockNegativo.length > 0) {
+  mostrarModalAdvertenciaStockNegativo(articulosStockNegativo, pedidoId);
+  return;
+}
+
+// 🟡 Si solo hay stock 0 → advertir pero continuar
+if (articulosStockCero.length > 0) {
+  mostrarModalAdvertenciaStockCero(articulosStockCero);
+}
+
+    function mostrarModalStockNegativo(articulos, pedidoId) {
+  let modal = document.createElement("div");
+
+  Object.assign(modal.style, {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    background: "rgba(0,0,0,0.7)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  });
+
+  const modalContent = document.createElement("div");
+
+  Object.assign(modalContent.style, {
+    background: "#fff",
+    padding: "25px",
+    borderRadius: "10px",
+    width: "400px",
+    maxHeight: "80vh",
+    overflowY: "auto",
+    boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
+    fontFamily: "Arial, sans-serif",
+    textAlign: "center",
+  });
+
+  modalContent.innerHTML = `
+    <h2 style="color:#f44336;">⛔ Stock Negativo Detectado</h2>
+    <p>No se puede generar el PDF.</p>
+    <ul style="text-align:left; margin:20px 0; padding-left:20px;">
+      ${articulos.map(a => `<li>${a}</li>`).join("")}
+    </ul>
+    <button id="btn-ir-editar" style="
+      padding:10px 20px;
+      background:#f44336;
+      color:white;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+      font-weight:bold;">
+      ✏️ Modificar Pedido
+    </button>
+  `;
+
+  modal.appendChild(modalContent);
+  document.body.appendChild(modal);
+
+  document.getElementById("btn-ir-editar").onclick = () => {
+    window.location.href = `modificacion.html?id=${pedidoId}`;
+  };
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
+
+function mostrarModalStockCero(articulos) {
+  return new Promise((resolve) => {
+    let modal = document.createElement("div");
+
+    Object.assign(modal.style, {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      background: "rgba(0,0,0,0.7)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 9999,
     });
 
-    if (articulosSinStock.length > 0) {
-      mostrarModalAdvertenciaStock(articulosSinStock, pedidoId);
-      return; // No proceder con el modal
-    }
+    const modalContent = document.createElement("div");
+
+    Object.assign(modalContent.style, {
+      background: "#fff",
+      padding: "25px",
+      borderRadius: "10px",
+      width: "400px",
+      maxHeight: "80vh",
+      overflowY: "auto",
+      boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
+      fontFamily: "Arial, sans-serif",
+      textAlign: "center",
+    });
+
+    modalContent.innerHTML = `
+      <h2 style="color:#ff9800;">⚠️ Stock en 0</h2>
+      <p>Los siguientes artículos tienen stock 0:</p>
+      <ul style="text-align:left; margin:20px 0; padding-left:20px;">
+        ${articulos.map(a => `<li>${a}</li>`).join("")}
+      </ul>
+      <div style="display:flex; justify-content:space-around;">
+        <button id="btn-continuar" style="
+          padding:10px 20px;
+          background:#4CAF50;
+          color:white;
+          border:none;
+          border-radius:4px;
+          cursor:pointer;
+          font-weight:bold;">
+          📄 Generar Igual
+        </button>
+
+        <button id="btn-cancelar" style="
+          padding:10px 20px;
+          background:#2196f3;
+          color:white;
+          border:none;
+          border-radius:4px;
+          cursor:pointer;
+          font-weight:bold;">
+          Cancelar
+        </button>
+      </div>
+    `;
+
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+
+    document.getElementById("btn-continuar").onclick = () => {
+      modal.remove();
+      resolve();
+    };
+
+    document.getElementById("btn-cancelar").onclick = () => {
+      modal.remove();
+    };
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.remove();
+    });
+  });
+}
+
+
 
     // NEW: seleccionar la colección de precios según data.categoria
     function coleccionPreciosParaCategoria(categoria) {

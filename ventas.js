@@ -22,6 +22,7 @@ const filtros = {
   fechaHasta: document.getElementById("filtro-fecha-hasta"),
   remito: document.getElementById("filtro-remito"),
   tipo: document.getElementById("filtro-tipo"),
+  vendedor: document.getElementById("filtro-vendedor"),
   total: document.getElementById("filtro-total"),
 };
 
@@ -60,6 +61,9 @@ async function ejecutarBusqueda() {
     if (filtros.tipo.value) {
       condiciones.push(where("tipoDocumento", "==", filtros.tipo.value));
     }
+    if (filtros.vendedor.value) {
+  condiciones.push(where("Vendedor", "==", filtros.vendedor.value));
+}
 
     condiciones.push(limit(500));
 
@@ -226,7 +230,6 @@ function exportarExcel() {
     const productosEntradas = Object.entries(v.productos || {});
 
     if (productosEntradas.length === 0) {
-      // Si por alguna razón no hay productos, agregamos la fila con los datos básicos
       filasExcel.push({
         Cliente: v.cliente || "-",
         Localidad: v.Localidad || "-",
@@ -234,29 +237,35 @@ function exportarExcel() {
         Fecha: v.fechaEntrega || "-",
         Remito: v.NumeroRemito || "-",
         Tipo: v.tipoDocumento || "-",
+        ID: "",
         Producto: "Sin productos",
         Cantidad: 0,
+        "Precio Unitario": "",
         "Precio Total Venta": v.total || 0,
       });
     } else {
-      // Agregamos una fila por cada producto del pedido
-      productosEntradas.forEach(([nombreProd, cantidad], index) => {
+      productosEntradas.forEach(([nombreProd, data], index) => {
+        const cantidad = Number(data.cantidad || 0);
+        const precioUnitario = Number(data.precio || 0);
+
         filasExcel.push({
-          Cliente: index === 0 ? v.cliente : "", // Solo mostramos el nombre en la primera fila del pedido para que sea más limpio
+          Cliente: index === 0 ? v.cliente : "",
           Localidad: index === 0 ? v.Localidad : "",
           Dirección: index === 0 ? v.direccion : "",
           Fecha: index === 0 ? v.fechaEntrega : "",
           Remito: index === 0 ? v.NumeroRemito : "",
           Tipo: index === 0 ? v.tipoDocumento : "",
+          ID: data.id || "",
           Producto: nombreProd,
           Cantidad: cantidad,
-          "Precio Total Venta": index === 0 ? v.total : "", // El total de la venta solo en la primera fila
+          "Precio Unitario": precioUnitario,
+          "Precio Total Venta": index === 0 ? v.total : "",
         });
       });
     }
   });
 
-  // Añadir fila de total general al final
+  // TOTAL GENERAL
   filasExcel.push({
     Cliente: "TOTAL GENERAL",
     Localidad: "",
@@ -264,19 +273,33 @@ function exportarExcel() {
     Fecha: "",
     Remito: "",
     Tipo: "",
+    ID: "",
     Producto: "",
     Cantidad: "",
+    "Precio Unitario": "",
     "Precio Total Venta": sumaTotalGlobal,
   });
 
   const ws = XLSX.utils.json_to_sheet(filasExcel);
+
+  // 🔹 PRIMERA FILA EN NEGRITA
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  for (let C = range.s.c; C <= range.e.c; C++) {
+    const cell = ws[XLSX.utils.encode_cell({ r: 0, c: C })];
+    if (cell && !cell.s) {
+      cell.s = { font: { bold: true } };
+    }
+  }
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Ventas Detalladas");
+
   XLSX.writeFile(
     wb,
     `Reporte_Ventas_Detalle_${new Date().toISOString().split("T")[0]}.xlsx`,
   );
 }
+
 
 // 🔹 LISTENERS
 btnBuscar.addEventListener("click", ejecutarBusqueda);
