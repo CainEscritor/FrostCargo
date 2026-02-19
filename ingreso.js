@@ -10,7 +10,14 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 const categorias = ["Ingrese categoría", "Remito", "Factura"];
-const vendedores = ["Seleccione vendedor", "Betty", "Alberto", "Ariel", "Martín", "Depósito"];
+const vendedores = [
+  "Seleccione vendedor",
+  "Betty",
+  "Alberto",
+  "Ariel",
+  "Martín",
+  "Depósito",
+];
 
 const colecciones = [
   "StockCarnicos",
@@ -67,6 +74,7 @@ const btnGuardarForzadoCliente = document.getElementById("btn-guardar-forzado");
 const btnCancelarModalCliente = document.getElementById("btn-cancelar-modal");
 const totalGeneralSpan = document.getElementById("total-general");
 const localInput = document.getElementById("local");
+const observacionesInput = document.getElementById("observaciones");
 
 // Desactivar validación nativa que bloquea el 0.5 cuando el step es 1
 if (formulario) formulario.setAttribute("novalidate", "");
@@ -349,7 +357,7 @@ async function guardarPedidoFinal(forzarStock = false, forzarCliente = false) {
       const clienteData = clientesInfo[nombre] || {};
       const idPedido = `${nombre} R${String(num).padStart(5, "0")}`;
 
-      transaction.set(doc(db, "Pedidos", idPedido), {
+      const pedidoData = {
         Nombre: nombre,
         Localidad: localidadInput.value,
         Vendedor: vendedorSelect.value,
@@ -361,9 +369,14 @@ async function guardarPedidoFinal(forzarStock = false, forzarCliente = false) {
         totalPedido: totalCalculado,
         Direccion: clienteData.Direccion || "",
         Local: clienteData.Local || "",
-      });
+      };
 
-      transaction.update(remitoRef, { numero: num + 1 });
+      // Agregar Observaciones solo si no está vacío
+      if (observacionesInput.value.trim()) {
+        pedidoData.Observaciones = observacionesInput.value.trim();
+      }
+
+      transaction.set(doc(db, "Pedidos", idPedido), pedidoData);
     });
 
     stockModal.style.display = "none";

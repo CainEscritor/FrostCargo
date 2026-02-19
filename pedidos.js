@@ -1159,134 +1159,146 @@ function mostrarModalRemito({
       </div>
 
       <div style="margin-bottom: 15px;">
-  <label style="font-weight:bold; display:block; margin-bottom:5px;">
-    Descuento por artículo
-  </label>
+        <label style="font-weight:bold; display:block; margin-bottom:5px;">
+          Descuento por artículo
+        </label>
 
-  <div id="articulos-descuento"
-     style="border:1px solid #ccc; border-radius:4px;
-            padding:8px; max-height:150px; overflow-y:auto;">
-</div>
+        <div id="articulos-descuento"
+           style="border:1px solid #ccc; border-radius:4px;
+                  padding:8px; max-height:150px; overflow-y:auto;">
+        </div>
 
-<label style="display:block; margin-top:10px; font-weight:bold;">
-  Porcentaje de descuento por artículo
-</label>
+        <label style="display:block; margin-top:10px; font-weight:bold;">
+          Porcentaje de descuento por artículo
+        </label>
 
-
-
-
-  
-
-  <input type="number" id="descuento-articulos-input"
-  min="0" step="0.01"
-  placeholder="Ej: 10"
-  style="width:100%; margin-top:6px; padding:8px;
-         border:1px solid #ccc; border-radius:4px;">
-</div>
-
+        <input type="number" id="descuento-articulos-input"
+          min="0" step="0.01"
+          placeholder="Ej: 10"
+          style="width:100%; margin-top:6px; padding:8px;
+                 border:1px solid #ccc; border-radius:4px;">
+      </div>
 
       <button id="generar-remito-final" style="width: 100%; padding: 10px; background-color: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer;">
-        Generar PDF con Opciones
+        Generar PDF
       </button>
     `;
 
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
 
-    cargarArticulosDescuento(productosPedidos);
+    const generarBtn = document.getElementById("generar-remito-final");
 
-    document.getElementById("descuento-articulos-input").value = "";
+    generarBtn.onclick = () => {
+      const empresaSeleccionada = document.querySelector(
+        'input[name="empresa-select"]:checked',
+      ).value;
+
+      const empresaData = EMPRESAS[empresaSeleccionada];
+
+      const ocultarPrecios = document.getElementById(
+        "ocultar-precios-check",
+      ).checked;
+
+      const descuentoPorcentaje =
+        parseFloat(document.getElementById("porcentaje-input").value) || 0;
+
+      const descuentoEfectivo =
+        parseFloat(document.getElementById("efectivo-input").value) || 0;
+
+      const observaciones = document
+        .getElementById("observaciones-input")
+        .value.trim();
+
+      const descuentoArticulosPorcentaje =
+        parseFloat(
+          document.getElementById("descuento-articulos-input").value,
+        ) || 0;
+
+      const modalContent = document.querySelector(
+        "#configuracion-remito-modal > div",
+      );
+
+      const articulosSeleccionados = Array.from(
+        modalContent.querySelectorAll(
+          "#articulos-descuento input[type='checkbox']:checked",
+        ),
+      ).map((chk) => chk.value);
+
+      modal.style.display = "none";
+
+      _generarRemitoFinal({
+        pedidoId,
+        data,
+        preciosData,
+        grupos,
+        productosPedidos,
+        ocultarPrecios,
+        descuentoPorcentaje,
+        descuentoEfectivo,
+        observaciones,
+        idsData,
+        empresaData,
+        descuentoArticulosPorcentaje,
+        articulosSeleccionados,
+      });
+    };
+
+    // 👈 AGREGA AQUÍ (después de appendChild, para la creación inicial):
+    document.getElementById("observaciones-input").value =
+      data.Observaciones || "";
+
+    cargarArticulosDescuento(productosPedidos);
 
     modal.addEventListener("click", (e) => {
       if (e.target === modal) modal.style.display = "none";
     });
   } else {
+    // Resetear campos para reutilización
     document.getElementById("ocultar-precios-check").checked = false;
     document.getElementById("porcentaje-input").value = "";
     document.getElementById("efectivo-input").value = "";
     document.getElementById("observaciones-input").value = "";
-    document.getElementById("descuento-articulos-input").value = ""; // 👈 ESTA
+    document.getElementById("descuento-articulos-input").value = "";
     cargarArticulosDescuento(productosPedidos);
+
+    // 👈 AGREGA AQUÍ (después de cargarArticulosDescuento, para reutilización):
+    document.getElementById("observaciones-input").value =
+      data.Observaciones || "";
+
     modal.style.display = "flex";
   }
 
-  function cargarArticulosDescuento(productosPedidos) {
-    const contenedor = document.getElementById("articulos-descuento");
-    if (!contenedor) return;
+  // ... (resto de la función, sin cambios)
+}
 
-    contenedor.innerHTML = "";
+function cargarArticulosDescuento(productosPedidos) {
+  const contenedor = document.getElementById("articulos-descuento");
+  if (!contenedor) return;
 
-    const articulosOrdenados = Object.values(productosPedidos)
-      .filter((d) => d?.producto && d.cantidad > 0)
-      .map((d) => d.producto)
-      .sort((a, b) => a.localeCompare(b, "es"));
+  contenedor.innerHTML = "";
 
-    articulosOrdenados.forEach((producto) => {
-      const label = document.createElement("label");
-      label.style.display = "flex";
-      label.style.alignItems = "center";
-      label.style.gap = "8px";
-      label.style.marginBottom = "4px";
-      label.style.cursor = "pointer";
+  const articulosOrdenados = Object.values(productosPedidos)
+    .filter((d) => d?.producto && d.cantidad > 0)
+    .map((d) => d.producto)
+    .sort((a, b) => a.localeCompare(b, "es"));
 
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.value = producto;
+  articulosOrdenados.forEach((producto) => {
+    const label = document.createElement("label");
+    label.style.display = "flex";
+    label.style.alignItems = "center";
+    label.style.gap = "8px";
+    label.style.marginBottom = "4px";
+    label.style.cursor = "pointer";
 
-      label.appendChild(checkbox);
-      label.appendChild(document.createTextNode(producto));
-      contenedor.appendChild(label);
-    });
-  }
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = producto;
 
-  const generarBtn = document.getElementById("generar-remito-final");
-  generarBtn.onclick = () => {
-    const empresaSeleccionada = document.querySelector(
-      'input[name="empresa-select"]:checked',
-    ).value;
-    const empresaData = EMPRESAS[empresaSeleccionada];
-    const ocultarPrecios = document.getElementById(
-      "ocultar-precios-check",
-    ).checked;
-    const descuentoPorcentaje =
-      parseFloat(document.getElementById("porcentaje-input").value) || 0; // Ej: 10
-    const descuentoEfectivo =
-      parseFloat(document.getElementById("efectivo-input").value) || 0; // Ej: 100
-    const observaciones = document
-      .getElementById("observaciones-input")
-      .value.trim();
-    const descuentoArticulosPorcentaje =
-      parseFloat(document.getElementById("descuento-articulos-input").value) ||
-      0;
-
-    const modalContent = document.querySelector(
-      "#configuracion-remito-modal > div",
-    );
-
-    const articulosSeleccionados = Array.from(
-      modalContent.querySelectorAll(
-        "#articulos-descuento input[type='checkbox']:checked",
-      ),
-    ).map((chk) => chk.value);
-
-    modal.style.display = "none";
-
-    _generarRemitoFinal({
-      pedidoId,
-      data,
-      preciosData,
-      grupos,
-      productosPedidos,
-      ocultarPrecios,
-      descuentoPorcentaje,
-      descuentoEfectivo,
-      observaciones,
-      idsData,
-      empresaData, // <--- Pasamos los datos de la empresa elegida
-      descuentoArticulosPorcentaje,
-      articulosSeleccionados,
-    });
-  };
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(producto));
+    contenedor.appendChild(label);
+  });
 }
 
 // =========================================================================
@@ -1795,6 +1807,19 @@ function crearElementoPedido(pedidoDoc, data) {
       const btnStyle =
         "padding: 10px 14px; border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: bold;";
 
+      // Verificar si existe el campo "Observaciones" y mostrarlo si es así
+      if (data.Observaciones) {
+        const obsDiv = document.createElement("div");
+        obsDiv.style.marginTop = "12px";
+        obsDiv.style.padding = "8px";
+        obsDiv.style.backgroundColor = "#ffc400"; // Color de fondo amarillo claro para destacar
+        obsDiv.style.border = "1px solid #ecb100"; // Borde sutil
+        obsDiv.style.borderRadius = "4px";
+        obsDiv.style.fontSize = "16px";
+        obsDiv.innerHTML = `<strong>Observaciones:</strong> ${data.Observaciones}`;
+        detallesContainer.appendChild(obsDiv);
+      }
+
       const btnBorrar = document.createElement("button");
       btnBorrar.textContent = "❌ Borrar";
       btnBorrar.style.cssText = btnStyle + "background-color: #f44336;";
@@ -1855,10 +1880,83 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
     return;
   }
 
-  // 1. Acumular cantidades y nombres de clientes
+  // Crear el contenedor del modal si no existe
+  let modal = document.getElementById("modalSeleccionPedidos");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "modalSeleccionPedidos";
+    modal.style = `
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7); display: flex; justify-content: center;
+      align-items: center; z-index: 9999; font-family: sans-serif;
+    `;
+    document.body.appendChild(modal);
+  }
+
+  // Contenido del modal
+  modal.innerHTML = `
+    <div style="background: white; padding: 20px; border-radius: 8px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+      <h3 style="margin-top: 0;">Seleccionar Pedidos para el PDF</h3>
+      <div style="margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+        <input type="checkbox" id="selectAllPedidos" checked> 
+        <label for="selectAllPedidos"><strong>Seleccionar Todos</strong></label>
+      </div>
+      <div id="listaCheckboxes">
+        ${pedidosFiltradosDocs.map((doc, index) => {
+          const data = doc.data();
+          const nombre = data.Nombre || "Sin nombre";
+          const fecha = data.fecha || ""; 
+          return `
+            <div style="margin: 5px 0;">
+              <input type="checkbox" class="pedido-check" value="${index}" checked id="p-${index}">
+              <label for="p-2${index}">${nombre} <span style="color: #666; font-size: 0.85em;">${fecha}</span></label>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+        <button id="btnCancelarModal" style="padding: 8px 15px; cursor: pointer;">Cancelar</button>
+        <button id="btnConfirmarPDF" style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Generar PDF</button>
+      </div>
+    </div>
+  `;
+
+  // --- Lógica del Modal ---
+  const selectAll = document.getElementById("selectAllPedidos");
+  const checks = document.querySelectorAll(".pedido-check");
+
+  // Switch de "Seleccionar todos"
+  selectAll.addEventListener("change", (e) => {
+    checks.forEach(cb => cb.checked = e.target.checked);
+  });
+
+  // Cerrar modal
+  document.getElementById("btnCancelarModal").onclick = () => modal.remove();
+
+  // Botón Confirmar
+  document.getElementById("btnConfirmarPDF").onclick = async () => {
+    const seleccionadosIdx = Array.from(checks)
+      .filter(cb => cb.checked)
+      .map(cb => parseInt(cb.value));
+
+    if (seleccionadosIdx.length === 0) {
+      alert("Debes seleccionar al menos un pedido.");
+      return;
+    }
+
+    const pedidosSeleccionados = seleccionadosIdx.map(idx => pedidosFiltradosDocs[idx]);
+    modal.remove(); // Cerramos el modal
+    
+    // Llamamos a la lógica real de procesamiento con los filtrados por el usuario
+    await procesarYDescargarPDF(pedidosSeleccionados);
+  };
+}
+
+async function procesarYDescargarPDF(pedidosFinales) {
+  // 1. Acumular cantidades (Tu lógica original intacta)
   const articulosAcumulados = {};
 
-  pedidosFiltradosDocs.forEach((doc) => {
+  pedidosFinales.forEach((doc) => {
     const data = doc.data();
     const nombreCliente = data.Nombre || "Sin nombre";
     const productosPedidos = data.productos || {};
@@ -1874,26 +1972,19 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
               coleccion: detalle.coleccion,
               producto: detalle.producto,
               cantidad: 0,
-              clientes: [], // Guardaremos los nombres de los clientes aquí
+              clientes: [],
             };
           }
           articulosAcumulados[key].cantidad += cantidad;
-          // Guardamos el cliente y cuánto pidió de este producto específico
-          articulosAcumulados[key].clientes.push(
-            `${nombreCliente} (${cantidad})`,
-          );
+          articulosAcumulados[key].clientes.push(`${nombreCliente} (${cantidad})`);
         }
       }
     });
   });
 
-  if (Object.keys(articulosAcumulados).length === 0) {
-    alert(
-      "No se encontraron artículos con las cantidades en los pedidos filtrados.",
-    );
-    return;
-  }
-
+  // --- El resto de tu código original (Verificación de stock, IDs, jsPDF) ---
+  // [AQUÍ VA TODO EL BLOQUE QUE TENÍAS DESDE LA CARGA DE STOCK HASTA EL PDF.SAVE]
+  
   // 🔹 NUEVO: Pre-cargar el stock actual de TODAS las colecciones
   const stockSnaps = await Promise.all(
     coleccionesStock.map((col) => getDoc(doc(db, col, "Stock"))),
@@ -1903,19 +1994,15 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
     stocksData[coleccionesStock[index]] = snap.data() || {};
   });
 
-  // 🔹 NUEVO: Verificar stock y reagrupar artículos con stock negativo o cero
   Object.values(articulosAcumulados).forEach((item) => {
-    const stockActual = stocksData[item.coleccion]?.[item.producto] || 0;
-    if (stockActual <= 0) {
-      item.coleccion = "ARTICULOS CON STOCK NEGATIVO"; // Reagrupar en nueva categoría
+    const stockActual = stocksData[item.coleccion]?.[item.producto] || 0;    
+    if (stockActual < 0) { // <--- Cambiado de <= a <
+      item.coleccion = "ARTICULOS CON STOCK NEGATIVO"; 
     }
   });
 
-  // 2. Clasificar los artículos acumulados por grupo de stock (incluyendo la nueva categoría)
   const gruposAcumulados = {};
-  // Inicializar con las colecciones estándar
   coleccionesStock.forEach((col) => (gruposAcumulados[col] = []));
-  // Agregar la nueva categoría
   gruposAcumulados["ARTICULOS CON STOCK NEGATIVO"] = [];
 
   Object.values(articulosAcumulados).forEach((item) => {
@@ -1924,42 +2011,28 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
     }
   });
 
-  // 3. Generar el PDF
+  // Generar el PDF
   const { jsPDF } = window.jspdf;
   const docPDF = new jsPDF({ format: "a4", unit: "mm" });
-
-  // 🔹 Cargar IDs de productos
   const idsSnap = await getDoc(doc(db, "idProductos", "idProducto"));
   const idsData = idsSnap.exists() ? idsSnap.data() : {};
 
-  const loadImage = (src) =>
-    new Promise((resolve, reject) => {
+  // Función interna para cargar imagen
+  const loadImage = (src) => new Promise((resolve, reject) => {
       const img = new Image();
       img.src = src;
       img.onload = () => resolve(img);
       img.onerror = reject;
-    });
+  });
 
   try {
     const logoImg = await loadImage("images/Grido_logo.png");
-
-    await drawResumenPDF(
-      docPDF,
-      logoImg,
-      gruposAcumulados,
-      pedidosFiltradosDocs.length,
-      idsData,
-    );
-
-    const nombreArchivo = filtroFecha
-      ? `Resumen_Pedidos_${filtroFecha}.pdf`
-      : `Resumen_Pedidos_Acumulado.pdf`;
-
+    await drawResumenPDF(docPDF, logoImg, gruposAcumulados, pedidosFinales.length, idsData);
+    const nombreArchivo = `Resumen_Pedidos_${filtroFecha || 'Seleccion'}.pdf`;
     docPDF.save(nombreArchivo);
-    alert("Resumen Acumulado de Artículos generado.");
   } catch (error) {
-    console.error("Error generando PDF:", error);
-    alert("Error al cargar el logo o generar el PDF.");
+    console.error("Error:", error);
+    alert("Error al generar el PDF.");
   }
 }
 
@@ -2093,11 +2166,12 @@ async function drawResumenPDF(
   });
 
   // --- TOTAL FINAL ---
-  y += 5;
-  if (y > maxY) {
+  y += 10;
+  if (y > maxY - 20) { // Verificamos si hay espacio para el total y las firmas
     docPDF.addPage();
     y = 20;
   }
+  
   docPDF.setFont("helvetica", "bold");
   docPDF.setFontSize(13);
   docPDF.text(
@@ -2106,4 +2180,31 @@ async function drawResumenPDF(
     y,
     { align: "right" },
   );
+
+  // --- SECCIÓN DE FIRMAS ---
+  y += 30; // Espacio para que puedan firmar arriba de la línea
+
+  // Si después del total el espacio es muy reducido, saltamos de página para las firmas
+  if (y > maxY) {
+    docPDF.addPage();
+    y = 40; 
+  }
+
+  const anchoFirma = 60;
+  const centroIzquierda = (pageWidth / 4) - (anchoFirma / 2);
+  const centroDerecha = (3 * pageWidth / 4) - (anchoFirma / 2);
+
+  docPDF.setLineWidth(0.5);
+  docPDF.setFontSize(10);
+  docPDF.setFont("helvetica", "bold");
+
+  // Firma 1: RECEPCIONÓ
+  docPDF.line(centroIzquierda, y, centroIzquierda + anchoFirma, y); // Línea
+  docPDF.text("RECEPCIONÓ", centroIzquierda + (anchoFirma / 2), y + 5, { align: "center" });
+
+  // Firma 2: RECIBIÓ
+  docPDF.line(centroDerecha, y, centroDerecha + anchoFirma, y); // Línea
+  docPDF.text("RECIBIÓ", centroDerecha + (anchoFirma / 2), y + 5, { align: "center" });
 }
+
+
