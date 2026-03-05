@@ -371,6 +371,8 @@ async function guardarPedidoFinal(forzarStock = false, forzarCliente = false) {
         Local: clienteData.Local || "",
       };
 
+      transaction.update(remitoRef, { numero: num + 1 });
+
       // Agregar Observaciones solo si no está vacío
       if (observacionesInput.value.trim()) {
         pedidoData.Observaciones = observacionesInput.value.trim();

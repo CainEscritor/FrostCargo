@@ -2200,7 +2200,7 @@ async function drawResumenPDF(
 
   // Firma 1: RECEPCIONÓ
   docPDF.line(centroIzquierda, y, centroIzquierda + anchoFirma, y); // Línea
-  docPDF.text("RECEPCIONÓ", centroIzquierda + (anchoFirma / 2), y + 5, { align: "center" });
+  docPDF.text("CONTROLÓ", centroIzquierda + (anchoFirma / 2), y + 5, { align: "center" });
 
   // Firma 2: RECIBIÓ
   docPDF.line(centroDerecha, y, centroDerecha + anchoFirma, y); // Línea
