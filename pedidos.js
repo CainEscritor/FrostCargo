@@ -744,39 +744,47 @@ function mostrarModalAdvertenciaStockFiltrados(conflictos) {
 // 🔹 Generar PDF
 window.generarPDF = async function (pedidoId) {
   try {
+    // 1. LIMPIEZA TOTAL: Borrar cualquier modal previo por clase o por selectores comunes
+    // Esto asegura que no queden botones de "Festa Carlos" en el DOM cuando abras a "Grosso Silvana"
+    const modalesViejos = document.querySelectorAll(".modal-pdf-sistema, [id*='modal'], [class*='modal']");
+    modalesViejos.forEach(m => m.remove());
+
+    // 2. OBTENER DATOS ÚNICOS DEL PEDIDO ACTUAL
     const pedidoRef = doc(db, "Pedidos", pedidoId);
     const pedidoSnap = await getDoc(pedidoRef);
-    const { jsPDF } = window.jspdf;
-    const docPDF = new jsPDF({ format: "a4", unit: "mm" });
 
-    const idsSnap = await getDoc(doc(db, "idProductos", "idProducto"));
-    const idsData = idsSnap.exists() ? idsSnap.data() : {};
     if (!pedidoSnap.exists()) {
       alert("Pedido no encontrado ❌");
       return;
     }
 
-    const data = pedidoSnap.data();
+    // Capturamos los datos en una constante local (Scope de función)
+    const dataActual = { ...pedidoSnap.data() }; 
+    const { jsPDF } = window.jspdf;
+    
+    // Instancia limpia de PDF para este pedido específico
+    const docPDF = new jsPDF({ format: "a4", unit: "mm" });
 
-    // 🔹 NUEVO: Pre-cargar el stock actual de TODAS las colecciones
+    const idsSnap = await getDoc(doc(db, "idProductos", "idProducto"));
+    const idsData = idsSnap.exists() ? idsSnap.data() : {};
+
+    // 3. CARGAR STOCK EN TIEMPO REAL
     const stockSnaps = await Promise.all(
-      coleccionesStock.map((col) => getDoc(doc(db, col, "Stock"))),
+      coleccionesStock.map((col) => getDoc(doc(db, col, "Stock")))
     );
     const stocksData = {};
     stockSnaps.forEach((snap, index) => {
       stocksData[coleccionesStock[index]] = snap.data() || {};
     });
 
-    // 🔹 NUEVO: Verificar si algún artículo tiene stock <= 0
-    const productosPedidos = data.productos || {};
+    // 4. VERIFICAR STOCKS
+    const productosPedidos = dataActual.productos || {};
     const articulosStockCero = [];
     const articulosStockNegativo = [];
 
     Object.values(productosPedidos).forEach((detalle) => {
       if (detalle && detalle.coleccion && detalle.producto) {
-        const stockActual =
-          stocksData[detalle.coleccion]?.[detalle.producto] ?? 0;
-
+        const stockActual = stocksData[detalle.coleccion]?.[detalle.producto] ?? 0;
         if (stockActual < 0) {
           articulosStockNegativo.push(detalle.producto);
         } else if (stockActual === 0) {
@@ -785,208 +793,105 @@ window.generarPDF = async function (pedidoId) {
       }
     });
 
-    // 🔴 Si hay stock negativo → bloquear
-    if (articulosStockNegativo.length > 0) {
-      mostrarModalStockNegativo(articulosStockNegativo, pedidoId);
-      return;
-    }
+    // --- FUNCIONES DE MODAL CON SCOPE CERRADO ---
 
-    // 🟡 Si hay stock 0 → advertir pero permitir continuar
-    if (articulosStockCero.length > 0) {
-      await mostrarModalStockCero(articulosStockCero);
-    }
-
-    function mostrarModalStockNegativo(articulos, pedidoId) {
-      let modal = document.createElement("div");
-
+    function crearContenedorModal() {
+      const modal = document.createElement("div");
+      modal.className = "modal-pdf-sistema"; 
       Object.assign(modal.style, {
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        background: "rgba(0,0,0,0.7)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 9999,
+        position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+        background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center",
+        alignItems: "center", zIndex: 99999, // Z-index muy alto
       });
+      return modal;
+    }
 
-      const modalContent = document.createElement("div");
+    async function gestionarValidacionStock() {
+      if (articulosStockNegativo.length > 0) {
+        mostrarModalStockNegativo(articulosStockNegativo, pedidoId);
+        return false;
+      }
+      if (articulosStockCero.length > 0) {
+        const continuar = await mostrarModalStockCero(articulosStockCero);
+        if (!continuar) return false;
+      }
+      return true;
+    }
 
-      Object.assign(modalContent.style, {
-        background: "#fff",
-        padding: "25px",
-        borderRadius: "10px",
-        width: "400px",
-        maxHeight: "80vh",
-        overflowY: "auto",
-        boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
-        fontFamily: "Arial, sans-serif",
-        textAlign: "center",
-      });
-
-      modalContent.innerHTML = `
-    <h2 style="color:#f44336;">⛔ Stock Negativo Detectado</h2>
-    <p>No se puede generar el PDF.</p>
-    <ul style="text-align:left; margin:20px 0; padding-left:20px;">
-      ${articulos.map((a) => `<li>${a}</li>`).join("")}
-    </ul>
-    <button id="btn-ir-editar" style="
-      padding:10px 20px;
-      background:#f44336;
-      color:white;
-      border:none;
-      border-radius:4px;
-      cursor:pointer;
-      font-weight:bold;">
-      ✏️ Modificar Pedido
-    </button>
-  `;
-
-      modal.appendChild(modalContent);
+    function mostrarModalStockNegativo(articulos, pId) {
+      const modal = crearContenedorModal();
+      modal.innerHTML = `
+        <div style="background:#fff; padding:25px; border-radius:10px; width:400px; text-align:center; font-family:Arial;">
+          <h2 style="color:#f44336;">⛔ Stock Negativo</h2>
+          <p>Pedido: <b>${pId}</b></p>
+          <ul style="text-align:left; margin:20px 0;">
+            ${articulos.map(a => `<li>${a}</li>`).join("")}
+          </ul>
+          <button id="btn-fix-negativo" style="padding:10px 20px; background:#f44336; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">
+            ✏️ Modificar Pedido
+          </button>
+        </div>
+      `;
       document.body.appendChild(modal);
-
-      document.getElementById("btn-ir-editar").onclick = () => {
-        window.location.href = `modificacion.html?id=${pedidoId}`;
+      document.getElementById("btn-fix-negativo").onclick = () => {
+        modal.remove();
+        window.location.href = `modificacion.html?id=${pId}`;
       };
-
-      modal.addEventListener("click", (e) => {
-        if (e.target === modal) modal.remove();
-      });
     }
 
     function mostrarModalStockCero(articulos) {
       return new Promise((resolve) => {
-        let modal = document.createElement("div");
-
-        Object.assign(modal.style, {
-          position: "fixed",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          background: "rgba(0,0,0,0.7)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          zIndex: 9999,
-        });
-
-        const modalContent = document.createElement("div");
-
-        Object.assign(modalContent.style, {
-          background: "#fff",
-          padding: "25px",
-          borderRadius: "10px",
-          width: "400px",
-          maxHeight: "80vh",
-          overflowY: "auto",
-          boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
-          fontFamily: "Arial, sans-serif",
-          textAlign: "center",
-        });
-
-        modalContent.innerHTML = `
-      <h2 style="color:#ff9800;">⚠️ Stock en 0</h2>
-      <p>Los siguientes artículos tienen stock 0:</p>
-      <ul style="text-align:left; margin:20px 0; padding-left:20px;">
-        ${articulos.map((a) => `<li>${a}</li>`).join("")}
-      </ul>
-      <div style="display:flex; justify-content:space-around;">
-        <button id="btn-continuar" style="
-          padding:10px 20px;
-          background:#4CAF50;
-          color:white;
-          border:none;
-          border-radius:4px;
-          cursor:pointer;
-          font-weight:bold;">
-          📄 Generar Igual
-        </button>
-
-        <button id="btn-cancelar" style="
-          padding:10px 20px;
-          background:#2196f3;
-          color:white;
-          border:none;
-          border-radius:4px;
-          cursor:pointer;
-          font-weight:bold;">
-          Cancelar
-        </button>
-      </div>
-    `;
-
-        modal.appendChild(modalContent);
+        const modal = crearContenedorModal();
+        modal.innerHTML = `
+          <div style="background:#fff; padding:25px; border-radius:10px; width:400px; text-align:center; font-family:Arial;">
+            <h2 style="color:#ff9800;">⚠️ Stock en 0</h2>
+            <ul style="text-align:left;">${articulos.map(a => `<li>${a}</li>`).join("")}</ul>
+            <button id="btn-confirmar-cero" style="padding:10px; background:#4CAF50; color:white; border:none; margin:5px; cursor:pointer;">Generar Igual</button>
+            <button id="btn-cancelar-cero" style="padding:10px; background:#2196f3; color:white; border:none; margin:5px; cursor:pointer;">Cancelar</button>
+          </div>
+        `;
         document.body.appendChild(modal);
-
-        document.getElementById("btn-continuar").onclick = () => {
-          modal.remove();
-          resolve();
-        };
-
-        document.getElementById("btn-cancelar").onclick = () => {
-          modal.remove();
-        };
-
-        modal.addEventListener("click", (e) => {
-          if (e.target === modal) modal.remove();
-        });
+        document.getElementById("btn-confirmar-cero").onclick = () => { modal.remove(); resolve(true); };
+        document.getElementById("btn-cancelar-cero").onclick = () => { modal.remove(); resolve(false); };
       });
     }
 
-    // NEW: seleccionar la colección de precios según data.categoria
-    function coleccionPreciosParaCategoria(categoria) {
-      if (!categoria) return "PreciosExpress";
-      const c = categoria.toString().toLowerCase().trim();
+    // --- FLUJO FINAL ---
 
-      const mapa = {
-        express: "PreciosExpress",
-        store: "PreciosStore",
-        gastronómico: "PreciosGastronomico",
-        gastronomico: "PreciosGastronomico",
-        franquicia: "PreciosFranquicia",
-        supermercados: "PreciosSupermercados",
-        supermercado: "PreciosSupermercados",
-        otro: "PreciosExpress",
-        remito: "PreciosExpress", // Asumiendo default para remito/factura
-        factura: "PreciosExpress",
-        "ingrese categoría": "PreciosExpress",
-      };
-      return mapa[c] || "PreciosExpress";
-    }
-
-    const nombreColeccionPrecios = coleccionPreciosParaCategoria(
-      data.categoria,
-    ); // 1. Obtener referencias y datos necesarios para el PDF
+    const validacionOk = await gestionarValidacionStock();
+    if (!validacionOk) return;
 
     const preciosSnap = await getDoc(doc(db, "Precios", "Precio"));
-    const preciosData = preciosSnap.exists() ? preciosSnap.data() : {}; // 2. Clasificar artículos del pedido
+    const preciosData = preciosSnap.exists() ? preciosSnap.data() : {};
+    
     const grupos = {};
-    coleccionesStock.forEach((col) => (grupos[col] = [])); // Llenar los grupos (ej. grupos["StockCarnicos"] = ["Asado", "Chorizo"])
+    coleccionesStock.forEach((col) => (grupos[col] = []));
 
     Object.keys(productosPedidos).forEach((key) => {
       const detalle = productosPedidos[key];
-      if (detalle && detalle.coleccion && detalle.producto) {
+      if (detalle?.coleccion && detalle?.producto) {
         const cantidad = detalle.cantidad || 0;
         if (cantidad > 0 && grupos.hasOwnProperty(detalle.coleccion)) {
           grupos[detalle.coleccion].push(detalle.producto);
         }
       }
-    }); // 3. Mostrar el modal de configuración
+    });
 
+    // 5. EJECUCIÓN: Pasamos los datos específicos y la instancia limpia de PDF
+    // Es vital que mostrarModalRemito use el 'data' que le pasamos aquí y no una variable global.
     mostrarModalRemito({
-      pedidoId,
-      data,
-      preciosData,
+      pedidoId: pedidoId,
+      data: dataActual, 
+      preciosData: preciosData,
       grupos: grupos,
       productosPedidos: productosPedidos,
-      idsData,
+      idsData: idsData,
+      docPDF: docPDF 
     });
+
   } catch (err) {
-    console.error("Error inicializando PDF:", err);
-    alert("Error inicializando PDF ❌ Revisa la consola.");
+    console.error("Error en generarPDF:", err);
+    alert("Error al procesar el PDF ❌");
   }
 };
 
