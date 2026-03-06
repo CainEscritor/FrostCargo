@@ -52,8 +52,11 @@ function renderPedidos() {
   // 🔹 Limitar a 10 pedidos solo cuando NO hay filtros activos
   let pedidosBase = pedidosFiltrados;
 
-  if (!hayFiltrosActivos() && !pedidoAbiertoId) {
-    pedidosBase = pedidosFiltrados.slice(0, 10);
+  if (
+    pedidoAbiertoId &&
+    !pedidosFiltrados.some((d) => d.id === pedidoAbiertoId)
+  ) {
+    pedidoAbiertoId = null;
   }
 
   const pedidosAMostrar = pedidoAbiertoId
@@ -94,6 +97,14 @@ function renderBotonResumen(pedidosFiltradosFinales) {
   resumenBtnContainer.style.cssText =
     "margin: 20px 0; text-align: center; display: flex; flex-direction: column; gap: 10px;";
 
+  // 🟢 BOTÓN ENTREGA MASIVA (NUEVO)
+  const btnEntregaMasiva = document.createElement("button");
+  btnEntregaMasiva.textContent = "✅ ENTREGAR VARIOS PEDIDOS";
+  btnEntregaMasiva.style.cssText =
+    "background-color: #4caf50; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;";
+  btnEntregaMasiva.onclick = () =>
+    abrirModalEntregaMasiva(pedidosFiltradosFinales);
+
   // 🔶 BOTÓN RESUMEN GENERAL
   const btnResumen = document.createElement("button");
   btnResumen.textContent = `📝 GENERAR RESUMEN ACUMULADO (${pedidosFiltradosFinales.length})`;
@@ -110,11 +121,11 @@ function renderBotonResumen(pedidosFiltradosFinales) {
   btnRemitos.onclick = () =>
     generarPDFRemitosFiltrados(pedidosFiltradosFinales);
 
-  resumenBtnContainer.appendChild(btnRemitos);
+  resumenBtnContainer.appendChild(btnEntregaMasiva);
+resumenBtnContainer.appendChild(btnRemitos);
+resumenBtnContainer.appendChild(btnResumen);
 
-  resumenBtnContainer.appendChild(btnResumen);
-  resumenBtnContainer.appendChild(btnRemitos);
-  pedidosContainer.appendChild(resumenBtnContainer);
+pedidosContainer.appendChild(resumenBtnContainer);
 }
 
 // 🟣 DOM (ANTES DE ARRANCAR FIREBASE)
@@ -737,6 +748,101 @@ function mostrarModalAdvertenciaStockFiltrados(conflictos) {
   }
 }
 
+async function abrirModalEntregaMasiva(pedidos) {
+  if (pedidos.length === 0) {
+    alert("No hay pedidos para mostrar.");
+    return;
+  }
+
+  // Crear fondo del modal
+  const overlay = document.createElement("div");
+  Object.assign(overlay.style, {
+    position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+    backgroundColor: "rgba(0,0,0,0.7)", zIndex: 10000,
+    display: "flex", justifyContent: "center", alignItems: "center"
+  });
+
+  const modal = document.createElement("div");
+  Object.assign(modal.style, {
+    background: "white", padding: "20px", borderRadius: "10px",
+    width: "90%", maxWidth: "500px", maxHeight: "80vh", overflowY: "auto",
+    position: "relative", fontFamily: "sans-serif"
+  });
+
+  modal.innerHTML = `
+    <h3 style="margin-top:0;">Seleccionar pedidos a entregar</h3>
+    <div style="margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:10px;">
+        <input type="checkbox" id="selectAll"> <strong>Seleccionar Todos</strong>
+    </div>
+    <div id="listaPedidosEntrega" style="display:flex; flex-direction:column; gap:10px;"></div>
+    <div style="margin-top:20px; display:flex; gap:10px;">
+        <button id="btnConfirmarMasivo" style="flex:1; padding:10px; background:#4caf50; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">CONFIRMAR ENTREGA</button>
+        <button id="btnCancelarMasivo" style="flex:1; padding:10px; background:#f44336; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">CANCELAR</button>
+    </div>
+  `;
+
+  const lista = modal.querySelector("#listaPedidosEntrega");
+  
+  pedidos.forEach(p => {
+    const d = p.data();
+    const div = document.createElement("label");
+    div.style.cssText = "display:flex; align-items:center; gap:10px; padding:5px; border-bottom:1px solid #f9f9f9; cursor:pointer;";
+    div.innerHTML = `
+      <input type="checkbox" class="pedido-check" value="${p.id}">
+      <span><strong>${d.Nombre}</strong><br><small>${d.Localidad || ''} - ${d.fechaEntrega || ''}</small></span>
+    `;
+    lista.appendChild(div);
+  });
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Evento Seleccionar Todos
+  modal.querySelector("#selectAll").onchange = (e) => {
+    modal.querySelectorAll(".pedido-check").forEach(cb => cb.checked = e.target.checked);
+  };
+
+  // Botón Cancelar
+  modal.querySelector("#btnCancelarMasivo").onclick = () => document.body.removeChild(overlay);
+
+  // Botón Confirmar
+  modal.querySelector("#btnConfirmarMasivo").onclick = async () => {
+    const seleccionados = Array.from(modal.querySelectorAll(".pedido-check:checked")).map(cb => cb.value);
+    
+    if (seleccionados.length === 0) {
+      alert("No seleccionaste ningún pedido.");
+      return;
+    }
+
+    if (!confirm(`¿Estás seguro de entregar ${seleccionados.length} pedidos a la vez?`)) return;
+
+    // Cambiar estado visual del botón
+    const btn = modal.querySelector("#btnConfirmarMasivo");
+    btn.disabled = true;
+    btn.textContent = "PROCESANDO...";
+
+    try {
+      for (const id of seleccionados) {
+        // Obtenemos la data fresca de cada pedido para procesar
+        const pedidoSnap = await getDoc(doc(db, "Pedidos", id));
+        if (pedidoSnap.exists()) {
+          const pData = pedidoSnap.data();
+          // USAMOS TU LÓGICA EXISTENTE
+          await guardarHistorialCliente(pData);
+          await guardarVenta(id, pData);
+          await deleteDoc(doc(db, "Pedidos", id));
+        }
+      }
+      alert("Entregas procesadas con éxito.");
+      document.body.removeChild(overlay);
+      // El renderPedidos() se disparará solo gracias al onSnapshot
+    } catch (error) {
+      console.error(error);
+      alert("Hubo un error en el proceso masivo: " + error.message);
+    }
+  };
+}
+
 // -------------------------------------------------------------------
 // ## Generar PDF (Remito Individual)
 // -------------------------------------------------------------------
@@ -746,8 +852,10 @@ window.generarPDF = async function (pedidoId) {
   try {
     // 1. LIMPIEZA TOTAL: Borrar cualquier modal previo por clase o por selectores comunes
     // Esto asegura que no queden botones de "Festa Carlos" en el DOM cuando abras a "Grosso Silvana"
-    const modalesViejos = document.querySelectorAll(".modal-pdf-sistema, [id*='modal'], [class*='modal']");
-    modalesViejos.forEach(m => m.remove());
+    const modalesViejos = document.querySelectorAll(
+      ".modal-pdf-sistema, [id*='modal'], [class*='modal']",
+    );
+    modalesViejos.forEach((m) => m.remove());
 
     // 2. OBTENER DATOS ÚNICOS DEL PEDIDO ACTUAL
     const pedidoRef = doc(db, "Pedidos", pedidoId);
@@ -759,9 +867,9 @@ window.generarPDF = async function (pedidoId) {
     }
 
     // Capturamos los datos en una constante local (Scope de función)
-    const dataActual = { ...pedidoSnap.data() }; 
+    const dataActual = { ...pedidoSnap.data() };
     const { jsPDF } = window.jspdf;
-    
+
     // Instancia limpia de PDF para este pedido específico
     const docPDF = new jsPDF({ format: "a4", unit: "mm" });
 
@@ -770,7 +878,7 @@ window.generarPDF = async function (pedidoId) {
 
     // 3. CARGAR STOCK EN TIEMPO REAL
     const stockSnaps = await Promise.all(
-      coleccionesStock.map((col) => getDoc(doc(db, col, "Stock")))
+      coleccionesStock.map((col) => getDoc(doc(db, col, "Stock"))),
     );
     const stocksData = {};
     stockSnaps.forEach((snap, index) => {
@@ -784,7 +892,8 @@ window.generarPDF = async function (pedidoId) {
 
     Object.values(productosPedidos).forEach((detalle) => {
       if (detalle && detalle.coleccion && detalle.producto) {
-        const stockActual = stocksData[detalle.coleccion]?.[detalle.producto] ?? 0;
+        const stockActual =
+          stocksData[detalle.coleccion]?.[detalle.producto] ?? 0;
         if (stockActual < 0) {
           articulosStockNegativo.push(detalle.producto);
         } else if (stockActual === 0) {
@@ -797,11 +906,18 @@ window.generarPDF = async function (pedidoId) {
 
     function crearContenedorModal() {
       const modal = document.createElement("div");
-      modal.className = "modal-pdf-sistema"; 
+      modal.className = "modal-pdf-sistema";
       Object.assign(modal.style, {
-        position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-        background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center",
-        alignItems: "center", zIndex: 99999, // Z-index muy alto
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        background: "rgba(0,0,0,0.7)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 99999, // Z-index muy alto
       });
       return modal;
     }
@@ -825,7 +941,7 @@ window.generarPDF = async function (pedidoId) {
           <h2 style="color:#f44336;">⛔ Stock Negativo</h2>
           <p>Pedido: <b>${pId}</b></p>
           <ul style="text-align:left; margin:20px 0;">
-            ${articulos.map(a => `<li>${a}</li>`).join("")}
+            ${articulos.map((a) => `<li>${a}</li>`).join("")}
           </ul>
           <button id="btn-fix-negativo" style="padding:10px 20px; background:#f44336; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">
             ✏️ Modificar Pedido
@@ -845,14 +961,20 @@ window.generarPDF = async function (pedidoId) {
         modal.innerHTML = `
           <div style="background:#fff; padding:25px; border-radius:10px; width:400px; text-align:center; font-family:Arial;">
             <h2 style="color:#ff9800;">⚠️ Stock en 0</h2>
-            <ul style="text-align:left;">${articulos.map(a => `<li>${a}</li>`).join("")}</ul>
+            <ul style="text-align:left;">${articulos.map((a) => `<li>${a}</li>`).join("")}</ul>
             <button id="btn-confirmar-cero" style="padding:10px; background:#4CAF50; color:white; border:none; margin:5px; cursor:pointer;">Generar Igual</button>
             <button id="btn-cancelar-cero" style="padding:10px; background:#2196f3; color:white; border:none; margin:5px; cursor:pointer;">Cancelar</button>
           </div>
         `;
         document.body.appendChild(modal);
-        document.getElementById("btn-confirmar-cero").onclick = () => { modal.remove(); resolve(true); };
-        document.getElementById("btn-cancelar-cero").onclick = () => { modal.remove(); resolve(false); };
+        document.getElementById("btn-confirmar-cero").onclick = () => {
+          modal.remove();
+          resolve(true);
+        };
+        document.getElementById("btn-cancelar-cero").onclick = () => {
+          modal.remove();
+          resolve(false);
+        };
       });
     }
 
@@ -863,7 +985,7 @@ window.generarPDF = async function (pedidoId) {
 
     const preciosSnap = await getDoc(doc(db, "Precios", "Precio"));
     const preciosData = preciosSnap.exists() ? preciosSnap.data() : {};
-    
+
     const grupos = {};
     coleccionesStock.forEach((col) => (grupos[col] = []));
 
@@ -881,14 +1003,13 @@ window.generarPDF = async function (pedidoId) {
     // Es vital que mostrarModalRemito use el 'data' que le pasamos aquí y no una variable global.
     mostrarModalRemito({
       pedidoId: pedidoId,
-      data: dataActual, 
+      data: dataActual,
       preciosData: preciosData,
       grupos: grupos,
       productosPedidos: productosPedidos,
       idsData: idsData,
-      docPDF: docPDF 
+      docPDF: docPDF,
     });
-
   } catch (err) {
     console.error("Error en generarPDF:", err);
     alert("Error al procesar el PDF ❌");
@@ -1807,17 +1928,19 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
         <label for="selectAllPedidos"><strong>Seleccionar Todos</strong></label>
       </div>
       <div id="listaCheckboxes">
-        ${pedidosFiltradosDocs.map((doc, index) => {
-          const data = doc.data();
-          const nombre = data.Nombre || "Sin nombre";
-          const fecha = data.fecha || ""; 
-          return `
+        ${pedidosFiltradosDocs
+          .map((doc, index) => {
+            const data = doc.data();
+            const nombre = data.Nombre || "Sin nombre";
+            const fecha = data.fecha || "";
+            return `
             <div style="margin: 5px 0;">
               <input type="checkbox" class="pedido-check" value="${index}" checked id="p-${index}">
               <label for="p-2${index}">${nombre} <span style="color: #666; font-size: 0.85em;">${fecha}</span></label>
             </div>
           `;
-        }).join('')}
+          })
+          .join("")}
       </div>
       <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
         <button id="btnCancelarModal" style="padding: 8px 15px; cursor: pointer;">Cancelar</button>
@@ -1832,7 +1955,7 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
 
   // Switch de "Seleccionar todos"
   selectAll.addEventListener("change", (e) => {
-    checks.forEach(cb => cb.checked = e.target.checked);
+    checks.forEach((cb) => (cb.checked = e.target.checked));
   });
 
   // Cerrar modal
@@ -1841,17 +1964,19 @@ async function generarPDFAcumulado(pedidosFiltradosDocs) {
   // Botón Confirmar
   document.getElementById("btnConfirmarPDF").onclick = async () => {
     const seleccionadosIdx = Array.from(checks)
-      .filter(cb => cb.checked)
-      .map(cb => parseInt(cb.value));
+      .filter((cb) => cb.checked)
+      .map((cb) => parseInt(cb.value));
 
     if (seleccionadosIdx.length === 0) {
       alert("Debes seleccionar al menos un pedido.");
       return;
     }
 
-    const pedidosSeleccionados = seleccionadosIdx.map(idx => pedidosFiltradosDocs[idx]);
+    const pedidosSeleccionados = seleccionadosIdx.map(
+      (idx) => pedidosFiltradosDocs[idx],
+    );
     modal.remove(); // Cerramos el modal
-    
+
     // Llamamos a la lógica real de procesamiento con los filtrados por el usuario
     await procesarYDescargarPDF(pedidosSeleccionados);
   };
@@ -1881,7 +2006,9 @@ async function procesarYDescargarPDF(pedidosFinales) {
             };
           }
           articulosAcumulados[key].cantidad += cantidad;
-          articulosAcumulados[key].clientes.push(`${nombreCliente} (${cantidad})`);
+          articulosAcumulados[key].clientes.push(
+            `${nombreCliente} (${cantidad})`,
+          );
         }
       }
     });
@@ -1889,7 +2016,7 @@ async function procesarYDescargarPDF(pedidosFinales) {
 
   // --- El resto de tu código original (Verificación de stock, IDs, jsPDF) ---
   // [AQUÍ VA TODO EL BLOQUE QUE TENÍAS DESDE LA CARGA DE STOCK HASTA EL PDF.SAVE]
-  
+
   // 🔹 NUEVO: Pre-cargar el stock actual de TODAS las colecciones
   const stockSnaps = await Promise.all(
     coleccionesStock.map((col) => getDoc(doc(db, col, "Stock"))),
@@ -1900,9 +2027,10 @@ async function procesarYDescargarPDF(pedidosFinales) {
   });
 
   Object.values(articulosAcumulados).forEach((item) => {
-    const stockActual = stocksData[item.coleccion]?.[item.producto] || 0;    
-    if (stockActual < 0) { // <--- Cambiado de <= a <
-      item.coleccion = "ARTICULOS CON STOCK NEGATIVO"; 
+    const stockActual = stocksData[item.coleccion]?.[item.producto] || 0;
+    if (stockActual < 0) {
+      // <--- Cambiado de <= a <
+      item.coleccion = "ARTICULOS CON STOCK NEGATIVO";
     }
   });
 
@@ -1923,17 +2051,24 @@ async function procesarYDescargarPDF(pedidosFinales) {
   const idsData = idsSnap.exists() ? idsSnap.data() : {};
 
   // Función interna para cargar imagen
-  const loadImage = (src) => new Promise((resolve, reject) => {
+  const loadImage = (src) =>
+    new Promise((resolve, reject) => {
       const img = new Image();
       img.src = src;
       img.onload = () => resolve(img);
       img.onerror = reject;
-  });
+    });
 
   try {
     const logoImg = await loadImage("images/Grido_logo.png");
-    await drawResumenPDF(docPDF, logoImg, gruposAcumulados, pedidosFinales.length, idsData);
-    const nombreArchivo = `Resumen_Pedidos_${filtroFecha || 'Seleccion'}.pdf`;
+    await drawResumenPDF(
+      docPDF,
+      logoImg,
+      gruposAcumulados,
+      pedidosFinales.length,
+      idsData,
+    );
+    const nombreArchivo = `Resumen_Pedidos_${filtroFecha || "Seleccion"}.pdf`;
     docPDF.save(nombreArchivo);
   } catch (error) {
     console.error("Error:", error);
@@ -2072,11 +2207,12 @@ async function drawResumenPDF(
 
   // --- TOTAL FINAL ---
   y += 10;
-  if (y > maxY - 20) { // Verificamos si hay espacio para el total y las firmas
+  if (y > maxY - 20) {
+    // Verificamos si hay espacio para el total y las firmas
     docPDF.addPage();
     y = 20;
   }
-  
+
   docPDF.setFont("helvetica", "bold");
   docPDF.setFontSize(13);
   docPDF.text(
@@ -2092,12 +2228,12 @@ async function drawResumenPDF(
   // Si después del total el espacio es muy reducido, saltamos de página para las firmas
   if (y > maxY) {
     docPDF.addPage();
-    y = 40; 
+    y = 40;
   }
 
   const anchoFirma = 60;
-  const centroIzquierda = (pageWidth / 4) - (anchoFirma / 2);
-  const centroDerecha = (3 * pageWidth / 4) - (anchoFirma / 2);
+  const centroIzquierda = pageWidth / 4 - anchoFirma / 2;
+  const centroDerecha = (3 * pageWidth) / 4 - anchoFirma / 2;
 
   docPDF.setLineWidth(0.5);
   docPDF.setFontSize(10);
@@ -2105,11 +2241,13 @@ async function drawResumenPDF(
 
   // Firma 1: RECEPCIONÓ
   docPDF.line(centroIzquierda, y, centroIzquierda + anchoFirma, y); // Línea
-  docPDF.text("CONTROLÓ", centroIzquierda + (anchoFirma / 2), y + 5, { align: "center" });
+  docPDF.text("CONTROLÓ", centroIzquierda + anchoFirma / 2, y + 5, {
+    align: "center",
+  });
 
   // Firma 2: RECIBIÓ
   docPDF.line(centroDerecha, y, centroDerecha + anchoFirma, y); // Línea
-  docPDF.text("RECIBIÓ", centroDerecha + (anchoFirma / 2), y + 5, { align: "center" });
+  docPDF.text("RECIBIÓ", centroDerecha + anchoFirma / 2, y + 5, {
+    align: "center",
+  });
 }
-
-

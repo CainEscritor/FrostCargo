@@ -295,6 +295,7 @@ async function guardarPedidoFinal(forzarStock = false, forzarCliente = false) {
 
   if (
     !nombre ||
+    !fechaNumericaInput.value ||
     categoriaSelect.value === "Ingrese valor" ||
     productosSeleccionados.length === 0
   ) {

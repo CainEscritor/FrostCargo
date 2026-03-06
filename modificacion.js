@@ -8,7 +8,14 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 const categorias = ["Ingrese categoría", "Remito", "Factura"];
-const vendedores = ["Seleccione vendedor", "Betty", "Alberto", "Ariel", "Martín", "Depósito"];
+const vendedores = [
+  "Seleccione vendedor",
+  "Betty",
+  "Alberto",
+  "Ariel",
+  "Martín",
+  "Depósito",
+];
 const coleccionesStock = [
   "StockCarnicos",
   "StockFrigorBalde",
@@ -52,7 +59,7 @@ const vendedorSelect = document.getElementById("vendedor");
 const contenedorColecciones = document.getElementById("contenedor-colecciones");
 const mensajeConfirmacion = document.getElementById("mensaje-confirmacion");
 const mensajeErrorValidacion = document.getElementById(
-  "mensaje-error-validacion"
+  "mensaje-error-validacion",
 );
 
 const stockModal = document.getElementById("stock-advertencia-modal");
@@ -73,7 +80,7 @@ function fillSelect(select, options) {
           opt.includes("Ingrese") || opt.includes("Seleccione")
             ? "Ingrese valor"
             : opt
-        }">${opt}</option>`
+        }">${opt}</option>`,
     )
     .join("");
 }
@@ -154,17 +161,17 @@ function renderizarProductos() {
 `;
 
       fila.querySelector("input").oninput = (e) => {
-  let cant = Number(e.target.value) || 0;
+        let cant = Number(e.target.value) || 0;
 
-  // Permitimos solo X.0 o X.5 (igual que el JS de carga)
-  if (cant % 1 !== 0 && cant % 1 !== 0.5) {
-    cant = Math.floor(cant) + 0.5;
-    e.target.value = cant;
-  }
+        // Permitimos solo X.0 o X.5 (igual que el JS de carga)
+        if (cant % 1 !== 0 && cant % 1 !== 0.5) {
+          cant = Math.floor(cant) + 0.5;
+          e.target.value = cant;
+        }
 
-  p.cantidadActual = cant;
-  fila.classList.toggle("activo", p.cantidadActual > 0);
-};
+        p.cantidadActual = cant;
+        fila.classList.toggle("activo", p.cantidadActual > 0);
+      };
       panel.appendChild(fila);
     });
     contenedorColecciones.appendChild(panel);
@@ -200,15 +207,19 @@ async function ejecutarGuardado(forzar = false) {
     const updates = { ...stockRef };
     productosEnEdicion[col].forEach((p) => {
       const delta = p.cantidadOriginal - p.cantidadActual;
-      const nuevoStockVal = (stockRef[p.nombre] || 0) + delta;
+      if (delta !== 0) {
+        const nuevoStockVal = (stockRef[p.nombre] || 0) + delta;
 
-      if (delta !== 0) updates[p.nombre] = nuevoStockVal;
-      if (nuevoStockVal < 0)
-        criticos.push(
-          `${p.nombre} (Stock: ${
-            stockRef[p.nombre] || 0
-          }, Quedaría: ${nuevoStockVal})`
-        );
+        updates[p.nombre] = nuevoStockVal;
+
+        if (nuevoStockVal < 0) {
+          criticos.push(
+            `${p.nombre} (Stock: ${
+              stockRef[p.nombre] || 0
+            }, Quedaría: ${nuevoStockVal})`,
+          );
+        }
+      }
 
       if (p.cantidadActual > 0) {
         nuevosProductosPedido[`${col}::${p.nombre}`] = {
