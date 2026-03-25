@@ -122,10 +122,10 @@ function renderBotonResumen(pedidosFiltradosFinales) {
     generarPDFRemitosFiltrados(pedidosFiltradosFinales);
 
   resumenBtnContainer.appendChild(btnEntregaMasiva);
-resumenBtnContainer.appendChild(btnRemitos);
-resumenBtnContainer.appendChild(btnResumen);
+  resumenBtnContainer.appendChild(btnRemitos);
+  resumenBtnContainer.appendChild(btnResumen);
 
-pedidosContainer.appendChild(resumenBtnContainer);
+  pedidosContainer.appendChild(resumenBtnContainer);
 }
 
 // 🟣 DOM (ANTES DE ARRANCAR FIREBASE)
@@ -276,6 +276,299 @@ async function borrarPedidoYActualizarStock(pedidoData, docId) {
     alert("Error al borrar/actualizar stock: " + e);
     console.error(e);
   }
+}
+
+async function validarStockAntesDeEntregar(pedidoId) {
+  const pedidoRef = doc(db, "Pedidos", pedidoId);
+  const pedidoSnap = await getDoc(pedidoRef);
+
+  if (!pedidoSnap.exists()) {
+    alert("Pedido no encontrado");
+    return false;
+  }
+
+  const data = pedidoSnap.data();
+
+  // 🔹 Cargar stock
+  const stockSnaps = await Promise.all(
+    coleccionesStock.map((col) => getDoc(doc(db, col, "Stock"))),
+  );
+
+  const stocksData = {};
+  stockSnaps.forEach((snap, index) => {
+    stocksData[coleccionesStock[index]] = snap.data() || {};
+  });
+
+  const productosPedidos = data.productos || {};
+  const articulosStockNegativo = [];
+  const articulosStockCero = [];
+
+  Object.values(productosPedidos).forEach((detalle) => {
+    if (detalle && detalle.coleccion && detalle.producto) {
+      const stockActual =
+        stocksData[detalle.coleccion]?.[detalle.producto] ?? 0;
+
+      if (stockActual < 0) {
+        articulosStockNegativo.push(detalle.producto);
+      } else if (stockActual === 0) {
+        articulosStockCero.push(detalle.producto);
+      }
+    }
+  });
+
+  // 🔴 STOCK NEGATIVO → BLOQUEAR (mismo comportamiento que PDF)
+  if (articulosStockNegativo.length > 0) {
+    mostrarModalStockNegativoEntrega(articulosStockNegativo, pedidoId);
+    return false;
+  }
+
+  // 🟡 STOCK EN 0 → opcional (como PDF)
+  if (articulosStockCero.length > 0) {
+    const continuar = await mostrarModalStockCeroEntrega(articulosStockCero);
+    if (!continuar) return false;
+  }
+
+  return true;
+}
+
+function mostrarModalStockNegativoEntrega(articulos, pedidoId) {
+  const modal = document.createElement("div");
+
+  Object.assign(modal.style, {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    background: "rgba(0,0,0,0.7)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 99999,
+  });
+
+  modal.innerHTML = `
+    <div style="background:#fff; padding:25px; border-radius:10px; width:400px; text-align:center;">
+      <h2 style="color:#f44336;">⛔ No se puede entregar</h2>
+      <p>Hay artículos con <b>stock negativo</b>:</p>
+      <ul style="text-align:left; margin:20px 0;">
+        ${articulos.map((a) => `<li>${a}</li>`).join("")}
+      </ul>
+      <button id="btn-fix-entrega" style="padding:10px 20px; background:#ff9800; color:white; border:none; border-radius:4px; cursor:pointer;">
+        ✏️ Modificar Pedido
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  document.getElementById("btn-fix-entrega").onclick = () => {
+    modal.remove();
+    window.location.href = `modificacion.html?id=${pedidoId}`;
+  };
+}
+
+function mostrarModalStockCeroEntrega(articulos) {
+  return new Promise((resolve) => {
+    const modal = document.createElement("div");
+
+    Object.assign(modal.style, {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      background: "rgba(0,0,0,0.7)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 99999,
+    });
+
+    modal.innerHTML = `
+      <div style="background:#fff; padding:25px; border-radius:10px; width:400px; text-align:center;">
+        <h2 style="color:#ff9800;">⚠️ Stock en 0</h2>
+        <ul style="text-align:left;">
+          ${articulos.map((a) => `<li>${a}</li>`).join("")}
+        </ul>
+        <button id="btn-continuar-entrega" style="padding:10px; background:#4CAF50; color:white; border:none; margin:5px;">
+          Entregar igual
+        </button>
+        <button id="btn-cancelar-entrega" style="padding:10px; background:#2196f3; color:white; border:none; margin:5px;">
+          Cancelar
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    document.getElementById("btn-continuar-entrega").onclick = () => {
+      modal.remove();
+      resolve(true);
+    };
+
+    document.getElementById("btn-cancelar-entrega").onclick = () => {
+      modal.remove();
+      resolve(false);
+    };
+  });
+}
+
+async function validarStockMasivo(pedidosIds) {
+  const pedidosData = [];
+
+  // 🔹 1. Traer todos los pedidos
+  for (const id of pedidosIds) {
+    const snap = await getDoc(doc(db, "Pedidos", id));
+    if (snap.exists()) {
+      pedidosData.push({ id, data: snap.data() });
+    }
+  }
+
+  // 🔹 2. Traer todos los stocks
+  const stockSnaps = await Promise.all(
+    coleccionesStock.map((col) => getDoc(doc(db, col, "Stock"))),
+  );
+
+  const stocksData = {};
+  stockSnaps.forEach((snap, index) => {
+    stocksData[coleccionesStock[index]] = snap.data() || {};
+  });
+
+  const conflictosNegativos = [];
+  const conflictosCero = [];
+
+  // 🔹 3. Analizar TODOS los pedidos
+  pedidosData.forEach(({ id, data }) => {
+    const productos = data.productos || {};
+
+    Object.values(productos).forEach((detalle) => {
+      if (detalle?.coleccion && detalle?.producto) {
+        const stockActual =
+          stocksData[detalle.coleccion]?.[detalle.producto] ?? 0;
+
+        if (stockActual < 0) {
+          conflictosNegativos.push({
+            pedidoId: id,
+            cliente: data.Nombre,
+            producto: detalle.producto,
+          });
+        } else if (stockActual === 0) {
+          conflictosCero.push({
+            pedidoId: id,
+            cliente: data.Nombre,
+            producto: detalle.producto,
+          });
+        }
+      }
+    });
+  });
+
+  // 🔴 BLOQUEO TOTAL si hay negativos
+  if (conflictosNegativos.length > 0) {
+    mostrarModalStockNegativoMasivo(conflictosNegativos);
+    return false;
+  }
+
+  // 🟡 AVISO si hay stock en 0
+  if (conflictosCero.length > 0) {
+    const continuar = await mostrarModalStockCeroMasivo(conflictosCero);
+    if (!continuar) return false;
+  }
+
+  return true;
+}
+
+function mostrarModalStockNegativoMasivo(conflictos) {
+  const modal = document.createElement("div");
+
+  Object.assign(modal.style, {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    background: "rgba(0,0,0,0.7)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 99999,
+  });
+
+  modal.innerHTML = `
+    <div style="background:#fff; padding:25px; border-radius:10px; width:450px; max-height:80vh; overflow:auto;">
+      <h2 style="color:#f44336;">⛔ No se puede entregar</h2>
+      <p>Hay pedidos con <b>stock negativo</b>:</p>
+
+      ${conflictos
+        .map(
+          (c) => `
+        <div style="margin-bottom:10px;">
+          <strong>${c.cliente}</strong><br>
+          <small>${c.producto}</small><br>
+          <button onclick="window.location.href='modificacion.html?id=${c.pedidoId}'"
+            style="margin-top:5px; padding:5px 10px; background:#ff9800; color:white; border:none;">
+            ✏️ Modificar
+          </button>
+        </div>
+      `,
+        )
+        .join("")}
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+}
+
+function mostrarModalStockCeroMasivo(conflictos) {
+  return new Promise((resolve) => {
+    const modal = document.createElement("div");
+
+    Object.assign(modal.style, {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      background: "rgba(0,0,0,0.7)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 99999,
+    });
+
+    modal.innerHTML = `
+      <div style="background:#fff; padding:25px; border-radius:10px; width:450px;">
+        <h2 style="color:#ff9800;">⚠️ Stock en 0</h2>
+
+        <ul>
+          ${conflictos
+            .map((c) => `<li>${c.cliente} → ${c.producto}</li>`)
+            .join("")}
+        </ul>
+
+        <button id="seguirMasivo" style="background:#4CAF50; color:white; padding:10px;">
+          Entregar igual
+        </button>
+
+        <button id="cancelarMasivo" style="background:#2196f3; color:white; padding:10px;">
+          Cancelar
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    document.getElementById("seguirMasivo").onclick = () => {
+      modal.remove();
+      resolve(true);
+    };
+
+    document.getElementById("cancelarMasivo").onclick = () => {
+      modal.remove();
+      resolve(false);
+    };
+  });
 }
 
 async function borrarPedidoSinStock(docId) {
@@ -757,16 +1050,29 @@ async function abrirModalEntregaMasiva(pedidos) {
   // Crear fondo del modal
   const overlay = document.createElement("div");
   Object.assign(overlay.style, {
-    position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-    backgroundColor: "rgba(0,0,0,0.7)", zIndex: 10000,
-    display: "flex", justifyContent: "center", alignItems: "center"
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0,0,0,0.7)",
+    zIndex: 10000,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
   });
 
   const modal = document.createElement("div");
   Object.assign(modal.style, {
-    background: "white", padding: "20px", borderRadius: "10px",
-    width: "90%", maxWidth: "500px", maxHeight: "80vh", overflowY: "auto",
-    position: "relative", fontFamily: "sans-serif"
+    background: "white",
+    padding: "20px",
+    borderRadius: "10px",
+    width: "90%",
+    maxWidth: "500px",
+    maxHeight: "80vh",
+    overflowY: "auto",
+    position: "relative",
+    fontFamily: "sans-serif",
   });
 
   modal.innerHTML = `
@@ -782,15 +1088,57 @@ async function abrirModalEntregaMasiva(pedidos) {
   `;
 
   const lista = modal.querySelector("#listaPedidosEntrega");
-  
-  pedidos.forEach(p => {
+
+  // 🔹 Cargar stock una sola vez
+  const stockSnaps = await Promise.all(
+    coleccionesStock.map((col) => getDoc(doc(db, col, "Stock"))),
+  );
+
+  const stocksData = {};
+  stockSnaps.forEach((snap, index) => {
+    stocksData[coleccionesStock[index]] = snap.data() || {};
+  });
+
+  pedidos.forEach((p) => {
     const d = p.data();
+
+    const productos = d.productos || {};
+    let tieneStockNegativo = false;
+
+    Object.values(productos).forEach((detalle) => {
+      if (detalle?.coleccion && detalle?.producto) {
+        const stockActual =
+          stocksData[detalle.coleccion]?.[detalle.producto] ?? 0;
+
+        if (stockActual < 0) {
+          tieneStockNegativo = true;
+        }
+      }
+    });
+
     const div = document.createElement("label");
-    div.style.cssText = "display:flex; align-items:center; gap:10px; padding:5px; border-bottom:1px solid #f9f9f9; cursor:pointer;";
+    div.style.cssText = `
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    padding:5px;
+    border-bottom:1px solid #f9f9f9;
+    cursor:pointer;
+  `;
+
     div.innerHTML = `
-      <input type="checkbox" class="pedido-check" value="${p.id}">
-      <span><strong>${d.Nombre}</strong><br><small>${d.Localidad || ''} - ${d.fechaEntrega || ''}</small></span>
-    `;
+    <input type="checkbox" class="pedido-check" value="${p.id}">
+    <span>
+      <strong>${d.Nombre}</strong><br>
+      <small>${d.Localidad || ""} - ${d.fechaEntrega || ""}</small>
+      ${
+        tieneStockNegativo
+          ? `<br><i style="color:#f44336;">(Tiene artículos con stock negativo)</i>`
+          : ""
+      }
+    </span>
+  `;
+
     lista.appendChild(div);
   });
 
@@ -799,46 +1147,52 @@ async function abrirModalEntregaMasiva(pedidos) {
 
   // Evento Seleccionar Todos
   modal.querySelector("#selectAll").onchange = (e) => {
-    modal.querySelectorAll(".pedido-check").forEach(cb => cb.checked = e.target.checked);
+    modal
+      .querySelectorAll(".pedido-check")
+      .forEach((cb) => (cb.checked = e.target.checked));
   };
 
   // Botón Cancelar
-  modal.querySelector("#btnCancelarMasivo").onclick = () => document.body.removeChild(overlay);
+  modal.querySelector("#btnCancelarMasivo").onclick = () =>
+    document.body.removeChild(overlay);
 
   // Botón Confirmar
   modal.querySelector("#btnConfirmarMasivo").onclick = async () => {
-    const seleccionados = Array.from(modal.querySelectorAll(".pedido-check:checked")).map(cb => cb.value);
-    
+    const seleccionados = Array.from(
+      modal.querySelectorAll(".pedido-check:checked"),
+    ).map((cb) => cb.value);
+
     if (seleccionados.length === 0) {
       alert("No seleccionaste ningún pedido.");
       return;
     }
 
-    if (!confirm(`¿Estás seguro de entregar ${seleccionados.length} pedidos a la vez?`)) return;
+    // 🔥 VALIDACIÓN MASIVA ANTES DE TODO
+    const ok = await validarStockMasivo(seleccionados);
+    if (!ok) return;
 
-    // Cambiar estado visual del botón
+    if (!confirm(`¿Entregar ${seleccionados.length} pedidos?`)) return;
+
     const btn = modal.querySelector("#btnConfirmarMasivo");
     btn.disabled = true;
     btn.textContent = "PROCESANDO...";
 
     try {
       for (const id of seleccionados) {
-        // Obtenemos la data fresca de cada pedido para procesar
         const pedidoSnap = await getDoc(doc(db, "Pedidos", id));
         if (pedidoSnap.exists()) {
           const pData = pedidoSnap.data();
-          // USAMOS TU LÓGICA EXISTENTE
           await guardarHistorialCliente(pData);
           await guardarVenta(id, pData);
           await deleteDoc(doc(db, "Pedidos", id));
         }
       }
+
       alert("Entregas procesadas con éxito.");
       document.body.removeChild(overlay);
-      // El renderPedidos() se disparará solo gracias al onSnapshot
     } catch (error) {
       console.error(error);
-      alert("Hubo un error en el proceso masivo: " + error.message);
+      alert("Error: " + error.message);
     }
   };
 }
@@ -1856,7 +2210,12 @@ function crearElementoPedido(pedidoDoc, data) {
       const btnEntregado = document.createElement("button");
       btnEntregado.textContent = "✅ Entregado";
       btnEntregado.style.cssText = btnStyle + "background-color: #4CAF50;";
-      btnEntregado.onclick = () => borrarPedidoSinStock(pedidoDoc.id);
+      btnEntregado.onclick = async () => {
+        const ok = await validarStockAntesDeEntregar(pedidoDoc.id);
+        if (!ok) return;
+
+        borrarPedidoSinStock(pedidoDoc.id);
+      };
       botonesDiv.appendChild(btnEntregado);
 
       const btnEditar = document.createElement("button");

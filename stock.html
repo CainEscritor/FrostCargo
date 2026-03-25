@@ -51,7 +51,7 @@
 
       table th,
       table td {
-        padding: 8px 0;
+        padding: 10px 15px;
         border-bottom: 1px solid #eee;
       }
 
@@ -75,6 +75,19 @@
         padding-right: 10px;
         font-weight: bold;
       }
+
+      table th:nth-child(3),
+table td:nth-child(3),
+table th:nth-child(4),
+table td:nth-child(4) {
+  text-align: center;      /* 🔥 centra los números */
+  min-width: 90px;         /* 🔥 más espacio horizontal */
+}
+
+/* Separación visual entre columnas */
+table td:nth-child(3) {
+  border-right: 2px solid #ddd; /* línea separadora */
+}
 
       .botones-abajo {
         display: flex;
