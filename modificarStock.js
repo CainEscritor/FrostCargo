@@ -2,7 +2,9 @@ import { db } from "./firebase.js";
 import {
   doc,
   getDoc,
-  writeBatch, // 🔹 Importamos Batch para guardado atómico
+  writeBatch,
+  collection,
+  getDocs
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 const contenedor = document.getElementById("contenedor-paneles");
@@ -43,112 +45,167 @@ const nombresColecciones = {
   StockSwift: "Swift",
 };
 
-/* ===================== RENDERIZADO ===================== */
+/* ===================== RESERVAS (IGUAL QUE STOCK) ===================== */
+
+async function obtenerReservas() {
+  const reservas = {};
+
+  const querySnapshot = await getDocs(collection(db, "Pedidos"));
+
+  querySnapshot.forEach((docSnap) => {
+    const data = docSnap.data();
+
+    if (!data.productos) return;
+
+    Object.values(data.productos).forEach((prod) => {
+      const nombre = prod.producto;
+      const cantidad = prod.cantidad || 0;
+
+      reservas[nombre] = (reservas[nombre] || 0) + cantidad;
+    });
+  });
+
+  return reservas;
+}
+
+/* ===================== RENDER ===================== */
 
 function crearPanelEditable(titulo, nombreColeccion) {
   const panel = document.createElement("div");
   panel.className = "panel";
+
   panel.innerHTML = `
     <h2>${titulo}</h2>
     <table>
       <thead>
         <tr>
-          <th>ID</th>
-          <th>Producto</th>
-          <th>Cantidad</th>
+          <th style="width:15%;">ID</th>
+          <th style="width:45%; text-align:left;">Producto</th>
+          <th style="width:20%; text-align:center;">Disponible</th>
+          <th style="width:20%; text-align:center;">Real</th>
         </tr>
       </thead>
       <tbody data-collection="${nombreColeccion}"></tbody>
     </table>
   `;
+
   contenedor.appendChild(panel);
   return panel.querySelector("tbody");
 }
 
-function renderizarInputs(tablaBody, data, idsData) {
+function renderizarInputs(tablaBody, data, idsData, reservas = {}) {
   tablaBody.innerHTML = "";
+
   const productos = Object.keys(data).sort((a, b) =>
     a.localeCompare(b, undefined, { sensitivity: "base" })
   );
 
   if (productos.length === 0) {
-    tablaBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#666;">Sin datos</td></tr>`;
+    tablaBody.innerHTML =
+      `<tr><td colspan="4" style="text-align:center; color:#666;">Sin datos</td></tr>`;
     return;
   }
 
   productos.forEach((prod) => {
+    const disponible = data[prod] || 0;
+    const reservado = reservas[prod] || 0;
+
+    const real = disponible + reservado;
+
     const tr = document.createElement("tr");
+
     tr.innerHTML = `
-      <td>${idsData[prod] || "---"}</td>
-      <td>${prod}</td>
-      <td>
-        <input type="number" min="0" value="${
-          data[prod]
-        }" data-key="${prod}" class="cantidad-input">
+      <td style="text-align:center;">${idsData[prod] || "---"}</td>
+
+      <td style="text-align:left; font-weight:bold;">
+        ${prod}
+      </td>
+
+      <td style="text-align:center;">
+        <input 
+          type="number" 
+          min="0" 
+          value="${disponible}" 
+          data-key="${prod}" 
+          class="cantidad-input"
+          style="width:80px; text-align:center;"
+        >
+      </td>
+
+      <td style="text-align:center; font-weight:bold; color:#333;">
+        ${real}
       </td>
     `;
+
     tablaBody.appendChild(tr);
   });
 }
 
-/* ===================== CARGA (PARALELA) ===================== */
+/* ===================== CARGA ===================== */
 
 async function cargarModificarTodos() {
   try {
     contenedor.innerHTML =
       "<p style='text-align:center;'>Cargando stock para edición...</p>";
 
-    // Cargamos IDs y Stocks en paralelo
-    const promesas = colecciones.map((col) => getDoc(doc(db, col, "Stock")));
+    const promesas = colecciones.map((col) =>
+      getDoc(doc(db, col, "Stock"))
+    );
+
     const promesaIDs = getDoc(doc(db, "idProductos", "idProducto"));
 
     const resultados = await Promise.all([...promesas, promesaIDs]);
+
     const idsData = resultados[resultados.length - 1].exists()
       ? resultados[resultados.length - 1].data()
       : {};
+
+    const reservas = await obtenerReservas();
 
     contenedor.innerHTML = "";
 
     for (let i = 0; i < colecciones.length; i++) {
       const col = colecciones[i];
       const snap = resultados[i];
-      const tbody = crearPanelEditable(nombresColecciones[col] || col, col);
+
       const data = snap.exists() ? snap.data() : {};
-      renderizarInputs(tbody, data, idsData);
+
+      const tbody = crearPanelEditable(
+        nombresColecciones[col] || col,
+        col
+      );
+
+      renderizarInputs(tbody, data, idsData, reservas);
     }
+
   } catch (e) {
     console.error(e);
     alert("Error al cargar los stocks ❌");
   }
 }
 
-/* ===================== GUARDADO ATÓMICO (BATCH) ===================== */
+/* ===================== GUARDADO ===================== */
 
 guardarBtn.addEventListener("click", async () => {
   try {
     guardarBtn.disabled = true;
-    guardarBtn.textContent = "Guardando en Batch...";
+    guardarBtn.textContent = "Guardando...";
 
-    // 1. Iniciamos el Batch
     const batch = writeBatch(db);
     let hayCambios = false;
 
-    // 2. Recorremos los paneles para armar la actualización
     contenedor.querySelectorAll("tbody").forEach((tbody) => {
       const coleccion = tbody.dataset.collection;
       const nuevoObjeto = {};
-      const inputs = tbody.querySelectorAll("input[data-key]");
 
-      if (inputs.length > 0) {
-        inputs.forEach((input) => {
-          nuevoObjeto[input.dataset.key] = Number(input.value) || 0;
-        });
+      tbody.querySelectorAll("input[data-key]").forEach((input) => {
+        nuevoObjeto[input.dataset.key] = Number(input.value) || 0;
+      });
 
-        // Agregamos la operación al batch
-        const docRef = doc(db, coleccion, "Stock");
-        batch.set(docRef, nuevoObjeto); // Usamos set para sobrescribir el stock completo de esa col
-        hayCambios = true;
-      }
+      const docRef = doc(db, coleccion, "Stock");
+
+      batch.set(docRef, nuevoObjeto);
+      hayCambios = true;
     });
 
     if (!hayCambios) {
@@ -156,19 +213,21 @@ guardarBtn.addEventListener("click", async () => {
       return;
     }
 
-    // 3. Ejecutamos el batch (una sola petición de red para todo)
     await batch.commit();
 
-    alert("¡Stock actualizado correctamente en todas las categorías! ✅");
-    await cargarModificarTodos(); // Recargamos para refrescar la vista
+    alert("Stock actualizado correctamente ✅");
+    await cargarModificarTodos();
+
   } catch (err) {
-    console.error("Error en batch:", err);
-    alert("Error crítico al guardar. Comprueba tu conexión. ❌");
+    console.error(err);
+    alert("Error al guardar ❌");
   } finally {
     guardarBtn.disabled = false;
     guardarBtn.textContent = "Guardar Cambios";
   }
 });
+
+/* ===================== INIT ===================== */
 
 refrescarBtn.addEventListener("click", cargarModificarTodos);
 cargarModificarTodos();

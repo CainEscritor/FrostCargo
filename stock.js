@@ -249,42 +249,102 @@ btnExcel.addEventListener("click", () => {
 function generarPDF(conCant) {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF();
-  let y = 15;
 
-  pdf.setFontSize(18).text("INVENTARIO FROST CARGO", 105, y, { align: "center" });
-  y += 15;
+  // Título principal
+  pdf.setFontSize(20);
+  pdf.setFont("helvetica", "bold");
+  pdf.text("INVENTARIO FROST CARGO", 105, 20, { align: "center" });
+
+  let finalY = 40;
 
   for (const col of colecciones) {
     const data = datosCache.stocks[col];
     if (!data) continue;
 
     const productos = Object.keys(data).sort();
+    if (productos.length === 0) continue;
 
-    productos.forEach((prod) => {
+    // 🔥 Nombre real de la categoría
+    const tituloCategoria = nombresColecciones[col] || col;
+
+    pdf.setFontSize(16);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(44, 62, 80);
+    pdf.text(tituloCategoria, 20, finalY);
+    finalY += 10;
+
+    const tableData = productos.map((prod) => {
       const disponible = data[prod] || 0;
       const reservado = datosCache.reservas[prod] || 0;
       const real = disponible + reservado;
 
-      let linea = `${prod}`;
-      if (conCant) linea += ` | Disp: ${disponible} | Real: ${real}`;
-
-      pdf.text(linea, 10, y);
-      y += 6;
-
-      if (y > 280) {
-        pdf.addPage();
-        y = 20;
-      }
+      return [
+        datosCache.ids[prod] || "---", // ID
+        prod,                           // PRODUCTO
+        disponible,                     // DISPONIBLE
+        real                            // REAL
+      ];
     });
+
+    pdf.autoTable({
+      startY: finalY,
+      head: [["ID", "PRODUCTO", "DISPONIBLE", "REAL"]],
+      body: tableData,
+      theme: "grid",
+      styles: {
+        fontSize: 10,
+        cellPadding: 4,
+        halign: "center",
+        valign: "middle"
+      },
+      headStyles: {
+        fillColor: [52, 152, 219],
+        textColor: 255,
+        fontStyle: "bold",
+        fontSize: 10
+      },
+      columnStyles: {
+        0: { cellWidth: 25, halign: "center" }, // ID
+        1: { cellWidth: 85, halign: "left", fontStyle: "bold" }, // PRODUCTO
+        2: { cellWidth: 30 }, // DISPONIBLE
+        3: { cellWidth: 30, fontStyle: "bold" } // REAL
+      },
+      margin: { left: 20, right: 20 }
+    });
+
+    finalY = pdf.lastAutoTable.finalY + 15;
+
+    // salto de página automático
+    if (finalY > 270) {
+      pdf.addPage();
+      finalY = 20;
+    }
   }
 
-  pdf.save("Stock_FrostCargo.pdf");
+  // Pie de página
+  const pageCount = pdf.internal.getNumberOfPages();
+
+  for (let i = 1; i <= pageCount; i++) {
+    pdf.setPage(i);
+    pdf.setFontSize(8);
+    pdf.setTextColor(127);
+    pdf.text(
+      `Página ${i} de ${pageCount} | Generado: ${new Date().toLocaleDateString()}`,
+      105,
+      290,
+      { align: "center" }
+    );
+  }
+
+  pdf.save(`Stock_FrostCargo_${new Date().toISOString().split("T")[0]}.pdf`);
 }
 
 /* ===================== EXCEL ===================== */
 
 function generarExcel(conCant) {
   const filas = [["CATEGORÍA", "ID", "PRODUCTO", "DISPONIBLE", "REAL"]];
+
+  let dataFinal = [];
 
   for (const col of colecciones) {
     const data = datosCache.stocks[col];
@@ -295,7 +355,7 @@ function generarExcel(conCant) {
       const reservado = datosCache.reservas[prod] || 0;
       const real = disponible + reservado;
 
-      filas.push([
+      dataFinal.push([
         nombresColecciones[col],
         datosCache.ids[prod] || "---",
         prod,
@@ -304,6 +364,13 @@ function generarExcel(conCant) {
       ]);
     });
   }
+
+  // 🔥 ORDEN ALFABÉTICO GLOBAL POR PRODUCTO (columna 2)
+  dataFinal.sort((a, b) =>
+    a[2].localeCompare(b[2], "es", { sensitivity: "base" })
+  );
+
+  filas.push(...dataFinal);
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(filas);
