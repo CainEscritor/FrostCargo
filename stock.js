@@ -292,8 +292,8 @@ function generarPDF(conCant) {
       body: tableData,
       theme: "grid",
       styles: {
-        fontSize: 10,
-        cellPadding: 4,
+        fontSize: 8,
+        cellPadding: 2,
         halign: "center",
         valign: "middle"
       },
